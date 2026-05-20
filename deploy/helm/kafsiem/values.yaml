@@ -9,11 +9,19 @@ image:
 replicaCount: 1
 
 # PSA-restricted-compatible defaults (PLAN-06 E-04 / audit F-4).
+# The kafSIEM image runs Caddy 2.x. Caddy's binary has the file
+# capability `cap_net_bind_service=ep` so it can bind privileged
+# ports without running as root, but Kubernetes only honours that
+# when both (a) the pod's capability set includes NET_BIND_SERVICE
+# (granted below in containerSecurityContext) and (b) the process
+# is allowed to run as the chosen UID. UID 1001 is the user the
+# upstream caddy image bakes for the caddy binary (file `ls -l
+# /usr/bin/caddy` shows owner 1001).
 podSecurityContext:
   runAsNonRoot: true
-  runAsUser: 1000
-  runAsGroup: 1000
-  fsGroup: 1000
+  runAsUser: 1001
+  runAsGroup: 1001
+  fsGroup: 1001
   seccompProfile:
     type: RuntimeDefault
 
@@ -24,6 +32,13 @@ containerSecurityContext:
   capabilities:
     drop:
       - ALL
+    # kafSIEM serves the Caddy SPA on :80. The Caddy binary has file
+    # capability `cap_net_bind_service=ep` baked in, so it can bind a
+    # privileged port without running as root — provided the pod's
+    # capability set includes NET_BIND_SERVICE. PSA-restricted allows
+    # this single capability as a documented exception (CKV_K8S_28).
+    add:
+      - NET_BIND_SERVICE
   seccompProfile:
     type: RuntimeDefault
 
