@@ -5,7 +5,7 @@ description: >
   Deploys the Caddy-served static frontend. For the Go collector, use the
   `kafsiem-collector` chart (roadmap).
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "1.0.0"
 maintainers:
   - name: Scalytics Platform Team
