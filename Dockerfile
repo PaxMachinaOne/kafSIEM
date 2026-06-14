@@ -12,7 +12,10 @@ RUN npm install -g npm@11.11.0 && npm ci
 COPY . .
 RUN npm run build
 
-FROM caddy:2.10-alpine
+FROM caddy:2.11.4-alpine
+
+# Pull patched apk packages (libssl3/libcrypto3 -> 3.5.7-r0) to clear Critical CVEs
+RUN apk upgrade --no-cache
 
 COPY docker/Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /app/dist /srv
