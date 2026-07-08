@@ -37,9 +37,11 @@ func BuildIncidentOverview(summary model.IncidentSummary, alerts []model.Alert) 
 	}
 	geo.CountryCodes = uniqueSorted(geo.CountryCodes)
 	for _, code := range geo.CountryCodes {
+		label := code
 		if name := countryNames[code]; name != "" {
-			geo.Countries = append(geo.Countries, name)
+			label = name
 		}
+		geo.Countries = append(geo.Countries, label)
 	}
 
 	timeline := make([]model.IncidentTimelineEntry, 0, len(summary.AlertIDs))
@@ -81,6 +83,7 @@ func BuildIncidentOverview(summary model.IncidentSummary, alerts []model.Alert) 
 	nodes := make([]model.IncidentGraphNode, 0)
 	edges := make([]model.IncidentGraphEdge, 0)
 	primaryID := strings.TrimSpace(summary.PrimaryAlertID)
+	evidenceByAlert := buildIncidentEvidence(alerts)
 
 	for _, entry := range timeline {
 		alert := byID[entry.AlertID]
@@ -116,6 +119,9 @@ func BuildIncidentOverview(summary model.IncidentSummary, alerts []model.Alert) 
 			Label: nodeID,
 		})
 		for _, entry := range timeline {
+			if !hasIncidentEvidence(evidenceByAlert[entry.AlertID].cves, strings.ToUpper(strings.TrimSpace(cve))) {
+				continue
+			}
 			edges = append(edges, model.IncidentGraphEdge{
 				From:   entry.AlertID,
 				To:     nodeID,
@@ -132,6 +138,9 @@ func BuildIncidentOverview(summary model.IncidentSummary, alerts []model.Alert) 
 			Label: entity,
 		})
 		for _, entry := range timeline {
+			if !hasIncidentEvidence(evidenceByAlert[entry.AlertID].actors, entity) {
+				continue
+			}
 			edges = append(edges, model.IncidentGraphEdge{
 				From:   entry.AlertID,
 				To:     nodeID,
@@ -148,6 +157,9 @@ func BuildIncidentOverview(summary model.IncidentSummary, alerts []model.Alert) 
 			Label: ioc,
 		})
 		for _, entry := range timeline {
+			if !hasIncidentEvidence(evidenceByAlert[entry.AlertID].malwareIOCs, ioc) {
+				continue
+			}
 			edges = append(edges, model.IncidentGraphEdge{
 				From:   entry.AlertID,
 				To:     nodeID,
@@ -164,6 +176,9 @@ func BuildIncidentOverview(summary model.IncidentSummary, alerts []model.Alert) 
 			Label: sector,
 		})
 		for _, entry := range timeline {
+			if !hasIncidentEvidence(evidenceByAlert[entry.AlertID].sectors, sector) {
+				continue
+			}
 			edges = append(edges, model.IncidentGraphEdge{
 				From:   entry.AlertID,
 				To:     nodeID,
@@ -202,6 +217,38 @@ func BuildIncidentOverview(summary model.IncidentSummary, alerts []model.Alert) 
 	}
 
 	return geo, timeline, model.IncidentGraph{Nodes: nodes, Edges: uniqueIncidentEdges(edges)}
+}
+
+type incidentAlertEvidence struct {
+	cves        []string
+	actors      []string
+	malwareIOCs []string
+	sectors     []string
+}
+
+func buildIncidentEvidence(alerts []model.Alert) map[string]incidentAlertEvidence {
+	dict := loadEntityDict()
+	out := make(map[string]incidentAlertEvidence, len(alerts))
+	for _, alert := range alerts {
+		tokens := contentFingerprint(alert, dict)
+		out[alert.AlertID] = incidentAlertEvidence{
+			cves:        extractCVEs(alert.Title),
+			actors:      extractEntityNames(tokens),
+			malwareIOCs: extractMalwareIOCs(alert),
+			sectors:     extractSectorTargets(alert),
+		}
+	}
+	return out
+}
+
+func hasIncidentEvidence(values []string, target string) bool {
+	target = strings.TrimSpace(target)
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }
 
 func pickCorroborationReason(reasons []string) string {
