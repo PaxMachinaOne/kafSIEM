@@ -25,6 +25,18 @@ export function formatLinkReason(reason: string): string {
   if (reason.startsWith("cross_source:jaccard:")) {
     return `Cross-source match (${reason.slice("cross_source:jaccard:".length)})`;
   }
+  if (reason.startsWith("anchor:kev:")) {
+    return `CISA KEV confirmed (${reason.slice("anchor:kev:".length)})`;
+  }
+  if (reason.startsWith("anchor:known_actor:")) {
+    return `Known actor registry (${reason.slice("anchor:known_actor:".length)})`;
+  }
+  if (reason.startsWith("anchor:travel_warning:")) {
+    return `Travel warning active (${reason.slice("anchor:travel_warning:".length)})`;
+  }
+  if (reason.startsWith("anchor:conflict_data:")) {
+    return `Conflict dataset corroboration (${reason.slice("anchor:conflict_data:".length)})`;
+  }
   return reason.replaceAll("_", " ");
 }
 

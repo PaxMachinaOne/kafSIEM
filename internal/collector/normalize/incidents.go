@@ -72,6 +72,7 @@ func ApplyIncidentLinks(alerts []model.Alert) ([]model.Alert, []model.IncidentSu
 		return alerts, nil
 	}
 
+	anchors := BuildRelationAnchors(alerts)
 	dict := loadEntityDict()
 	fps := make([]incidentFingerprints, 0, len(alerts))
 	alertIndex := make(map[string]model.Alert, len(alerts))
@@ -191,6 +192,11 @@ func ApplyIncidentLinks(alerts []model.Alert) ([]model.Alert, []model.IncidentSu
 		reasons := uniqueSorted(collectReasons(memberIDs, reasonsByAlert))
 		sharedCVEs := uniqueSorted(collectCVEs(memberIDs, cvesByAlert))
 		sharedEntities := uniqueSorted(collectActors(memberIDs, actorsByAlert))
+		memberAlerts := make([]model.Alert, 0, len(memberIDs))
+		for _, id := range memberIDs {
+			memberAlerts = append(memberAlerts, alertIndex[id])
+		}
+		reasons = ApplyAnchorCorroboration(reasons, memberAlerts, sharedCVEs, sharedEntities, anchors)
 		link := &model.IncidentLink{
 			IncidentID:      incidentID,
 			MemberCount:     len(memberIDs),

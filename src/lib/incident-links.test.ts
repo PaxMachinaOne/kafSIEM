@@ -49,6 +49,8 @@ describe("incident-links", () => {
   it("formats link reasons for display", () => {
     expect(formatLinkReason("shared_cve:CVE-2026-1234")).toContain("CVE-2026-1234");
     expect(formatLinkReason("shared_entity:Islamic State")).toContain("Islamic State");
+    expect(formatLinkReason("anchor:kev:CVE-2026-1234")).toContain("CISA KEV");
+    expect(formatLinkReason("anchor:conflict_data:SO")).toContain("Conflict dataset");
   });
 
   it("detects incident anchors", () => {
