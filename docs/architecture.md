@@ -226,7 +226,10 @@ Implementation: `internal/collector/normalize/incidents.go`,
 | `sanctioned_entity:` | OpenSanctions ↔ terror tip actor match | terror |
 | `anchor:malware:` | URLhaus/Feodo feed corroboration | cyber |
 
-Clustering is deterministic (union-find, hashed `inc-id`). No LLM clustering.
+All pairwise links require distinct `source_id`s — same-source repeats never
+corroborate. Clustering is deterministic (union-find; `inc-id` is hashed from
+the oldest member alert so the ID survives new members joining). No LLM
+clustering.
 
 ### Attack type classification
 
@@ -239,6 +242,7 @@ Each incident summary carries `attack_type` for the public Relations lens:
 | `maritime` | `maritime_security` category cluster |
 | `conflict` | `conflict_monitoring` / humanitarian security cluster |
 | `travel` | `travel_warning` cluster |
+| `hazard` | Natural-hazard/weather advisories (category, subcategory, or hazard keywords in all member titles) |
 | `hybrid` | Cyber signals plus terror or conflict signals |
 | `general` | Multi-source corroboration without a dominant lens |
 
@@ -253,6 +257,7 @@ Every cluster member alert can carry an `incident` block:
 {
   "incident_id": "inc-…",
   "member_count": 3,
+  "source_count": 2,
   "primary_alert_id": "…",
   "role": "primary",
   "related_alert_ids": ["…"],
@@ -273,7 +278,7 @@ Detail API responses include a lightweight relation graph built at read time:
 | Part | Content |
 |------|---------|
 | `timeline` | Member alerts ordered by `first_seen` |
-| `geo` | Aggregated `country_codes` / country names |
+| `geo` | Aggregated `country_codes` / country names (event geography only — publisher country is never counted) |
 | `graph.nodes` | Alerts plus typed nodes: `actor`, `cve`, `country` |
 | `graph.edges` | `attributed_to`, `exploits`, `located_in`, corroboration to primary |
 
