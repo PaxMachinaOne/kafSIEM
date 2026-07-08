@@ -49,6 +49,7 @@ func buildEntityDict() *entityDict {
 	paths := []string{
 		"registry/terror_actor_aliases.json",
 		"/app/registry/terror_actor_aliases.json",
+		"../../../registry/terror_actor_aliases.json",
 	}
 
 	var groups []aliasGroup

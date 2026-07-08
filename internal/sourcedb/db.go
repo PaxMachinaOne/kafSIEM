@@ -2097,7 +2097,8 @@ func defaultSourceQuality(src model.RegistrySource) float64 {
 	switch strings.TrimSpace(src.Type) {
 	case "rss", "travelwarning-atom":
 		score = 0.9
-	case "kev-json", "interpol-red-json", "interpol-yellow-json", "travelwarning-json":
+	case "kev-json", "nvd-json", "epss-csv", "interpol-red-json", "interpol-yellow-json", "travelwarning-json",
+		"un-sanctions-xml", "ofac-sdn-xml", "feodo-json", "urlhaus-csv":
 		score = 0.95
 	case "html-list":
 		score = 0.62

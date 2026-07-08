@@ -4738,38 +4738,22 @@
     "max_items": 15
   },
   {
-    "type": "rss",
+    "type": "ofac-sdn-xml",
     "source": {
       "source_id": "ofac-sdn",
-      "authority_name": "US Treasury OFAC Sanctions",
+      "authority_name": "US Treasury OFAC SDN List",
       "country": "United States",
       "country_code": "US",
       "region": "North America",
       "authority_type": "national_security",
       "base_url": "https://www.treasury.gov"
     },
-    "feed_url": "https://ofac.treasury.gov/system/files/126/sdn.xml",
-    "category": "fraud_alert",
+    "feed_url": "https://www.treasury.gov/ofac/downloads/sdn.xml",
+    "category": "terrorism_tip",
     "region_tag": "US",
     "lat": 38.89,
-    "lng": -77.03
-  },
-  {
-    "type": "rss",
-    "source": {
-      "source_id": "ofac-updates",
-      "authority_name": "OFAC Recent Actions",
-      "country": "United States",
-      "country_code": "US",
-      "region": "North America",
-      "authority_type": "national_security",
-      "base_url": "https://ofac.treasury.gov"
-    },
-    "feed_url": "https://ofac.treasury.gov/recent-actions/rss.xml",
-    "category": "fraud_alert",
-    "region_tag": "US",
-    "lat": 38.89,
-    "lng": -77.03
+    "lng": -77.03,
+    "max_items": 50
   },
   {
     "type": "rss",
@@ -4789,7 +4773,7 @@
     "lng": 4.35
   },
   {
-    "type": "rss",
+    "type": "un-sanctions-xml",
     "source": {
       "source_id": "un-sanctions",
       "authority_name": "UN Security Council Sanctions",
@@ -4800,27 +4784,11 @@
       "base_url": "https://www.un.org/securitycouncil/sanctions"
     },
     "feed_url": "https://scsanctions.un.org/resources/xml/en/consolidated.xml",
-    "category": "fraud_alert",
+    "category": "terrorism_tip",
     "region_tag": "INT",
     "lat": 40.75,
-    "lng": -73.97
-  },
-  {
-    "type": "rss",
-    "source": {
-      "source_id": "opensanctions",
-      "authority_name": "OpenSanctions",
-      "country": "Global",
-      "country_code": "INT",
-      "region": "International",
-      "authority_type": "public_safety_program",
-      "base_url": "https://www.opensanctions.org"
-    },
-    "feed_url": "https://www.opensanctions.org/rss/index.xml",
-    "category": "fraud_alert",
-    "region_tag": "INT",
-    "lat": 52.52,
-    "lng": 13.41
+    "lng": -73.97,
+    "max_items": 50
   },
   {
     "type": "rss",

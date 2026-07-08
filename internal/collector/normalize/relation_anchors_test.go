@@ -28,10 +28,29 @@ func TestBuildRelationAnchorsIndexesStructuredFeeds(t *testing.T) {
 			Category:         "conflict_monitoring",
 			EventCountryCode: "SO",
 		},
+		{
+			AlertID:  "epss-1",
+			SourceID: "first-epss",
+			Title:    "CVE-2026-8888 exploitation probability 91.0% (EPSS)",
+			Category: "cyber_advisory",
+		},
+		{
+			AlertID:     "un-1",
+			SourceID:    "un-sanctions",
+			Title:       "UN sanctions: Islamic State entity listing",
+			Subcategory: "sanctioned_actor:islamic_state",
+			Category:    "terrorism_tip",
+		},
 	}
 	anchors := BuildRelationAnchors(alerts)
 	if _, ok := anchors.KEVCVEs["CVE-2026-9999"]; !ok {
 		t.Fatalf("expected KEV CVE anchor, got %#v", anchors.KEVCVEs)
+	}
+	if _, ok := anchors.EPSSCVEs["CVE-2026-8888"]; !ok {
+		t.Fatalf("expected EPSS CVE anchor, got %#v", anchors.EPSSCVEs)
+	}
+	if _, ok := anchors.SanctionedActors["Islamic State"]; !ok {
+		t.Fatalf("expected sanctioned actor anchor, got %#v", anchors.SanctionedActors)
 	}
 	if _, ok := anchors.TravelWarningCountries["SO"]; !ok {
 		t.Fatalf("expected travel warning country SO, got %#v", anchors.TravelWarningCountries)
@@ -44,9 +63,11 @@ func TestBuildRelationAnchorsIndexesStructuredFeeds(t *testing.T) {
 func TestApplyAnchorCorroborationAddsExplainableReasons(t *testing.T) {
 	anchors := RelationAnchors{
 		KEVCVEs:                map[string]struct{}{"CVE-2026-9999": {}},
+		EPSSCVEs:               map[string]struct{}{"CVE-2026-8888": {}},
 		TravelWarningCountries: map[string]struct{}{"SO": {}},
 		ConflictDataCountries:  map[string]struct{}{"SO": {}},
 		KnownActors:            map[string]struct{}{"Islamic State": {}},
+		SanctionedActors:       map[string]struct{}{"Islamic State": {}},
 	}
 	memberAlerts := []model.Alert{
 		{
@@ -60,13 +81,15 @@ func TestApplyAnchorCorroborationAddsExplainableReasons(t *testing.T) {
 	reasons := ApplyAnchorCorroboration(
 		[]string{"shared_cve:CVE-2026-9999", "shared_entity:Islamic State"},
 		memberAlerts,
-		[]string{"CVE-2026-9999"},
+		[]string{"CVE-2026-9999", "CVE-2026-8888"},
 		[]string{"Islamic State"},
 		anchors,
 	)
 	for _, expected := range []string{
 		"anchor:kev:CVE-2026-9999",
+		"anchor:epss:CVE-2026-8888",
 		"anchor:known_actor:Islamic State",
+		"anchor:sanctioned:Islamic State",
 		"anchor:travel_warning:SO",
 		"anchor:conflict_data:SO",
 	} {

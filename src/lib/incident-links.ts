@@ -37,6 +37,12 @@ export function formatLinkReason(reason: string): string {
   if (reason.startsWith("anchor:conflict_data:")) {
     return `Conflict dataset corroboration (${reason.slice("anchor:conflict_data:".length)})`;
   }
+  if (reason.startsWith("anchor:epss:")) {
+    return `High EPSS score (${reason.slice("anchor:epss:".length)})`;
+  }
+  if (reason.startsWith("anchor:sanctioned:")) {
+    return `Sanctions listing (${reason.slice("anchor:sanctioned:".length)})`;
+  }
   return reason.replaceAll("_", " ");
 }
 

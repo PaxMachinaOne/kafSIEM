@@ -1059,8 +1059,12 @@ func acceptForType(sourceType string) string {
 	case "x":
 		return "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
 	case "kev-json", "fbi-wanted-json", "travelwarning-json", "acled-json",
-		"usgs-geojson", "eonet-json", "gdelt-json", "feodo-json", "ucdp-json":
+		"usgs-geojson", "eonet-json", "gdelt-json", "feodo-json", "ucdp-json", "nvd-json":
 		return "application/json"
+	case "epss-csv", "urlhaus-csv":
+		return "text/csv, text/plain, application/gzip, */*;q=0.8"
+	case "un-sanctions-xml", "ofac-sdn-xml":
+		return "application/xml, text/xml;q=0.9, */*;q=0.8"
 	case "travelwarning-atom":
 		return "application/atom+xml, application/xml;q=0.9, */*;q=0.8"
 	default:
@@ -1125,11 +1129,11 @@ func statusPriority(status string) int {
 
 func typePriority(kind string) int {
 	switch strings.ToLower(strings.TrimSpace(kind)) {
-	case "kev-json":
+	case "kev-json", "nvd-json", "epss-csv":
 		return 5
 	case "interpol-red-json", "interpol-yellow-json", "fbi-wanted-json", "travelwarning-json", "travelwarning-atom":
 		return 4
-	case "usgs-geojson", "eonet-json", "feodo-json", "gdelt-json", "ucdp-json":
+	case "usgs-geojson", "eonet-json", "feodo-json", "gdelt-json", "ucdp-json", "urlhaus-csv", "un-sanctions-xml", "ofac-sdn-xml":
 		return 4
 	case "rss":
 		return 3
@@ -1187,6 +1191,16 @@ func (r Runner) fetchSource(ctx context.Context, fetcher fetch.Fetcher, browser 
 		return r.fetchGDELT(ctx, fetcher, nctx, source)
 	case "ucdp-json":
 		return r.fetchUCDP(ctx, nctx, source)
+	case "nvd-json":
+		return r.fetchNVD(ctx, fetcher, nctx, source)
+	case "epss-csv":
+		return r.fetchEPSS(ctx, fetcher, nctx, source)
+	case "urlhaus-csv":
+		return r.fetchURLhaus(ctx, fetcher, nctx, source)
+	case "un-sanctions-xml":
+		return r.fetchUNSanctions(ctx, fetcher, nctx, source)
+	case "ofac-sdn-xml":
+		return r.fetchOFACSanctions(ctx, fetcher, nctx, source)
 	default:
 		return nil, fmt.Errorf("unsupported source type %s", source.Type)
 	}
@@ -2095,6 +2109,107 @@ func (r Runner) fetchFeodo(ctx context.Context, fetcher fetch.Fetcher, nctx norm
 			break
 		}
 		alert := normalize.FeodoAlert(nctx, source, item)
+		if alert != nil {
+			out = append(out, *alert)
+		}
+	}
+	return out, nil
+}
+
+func (r Runner) fetchNVD(ctx context.Context, fetcher fetch.Fetcher, nctx normalize.Context, source model.RegistrySource) ([]model.Alert, error) {
+	start := nctx.Now.Add(-7 * 24 * time.Hour).UTC().Format("2006-01-02T15:04:05.000")
+	reqURL := normalize.NVDRecentURL(source.FeedURL, start)
+	body, err := fetcher.Text(ctx, reqURL, source.FollowRedirects, "application/json")
+	if err != nil {
+		return nil, err
+	}
+	items, err := parse.ParseNVD(body)
+	if err != nil {
+		return nil, err
+	}
+	limit := perSourceLimit(nctx.Config, source)
+	out := make([]model.Alert, 0, limit)
+	for _, item := range items {
+		if len(out) == limit {
+			break
+		}
+		alert := normalize.NVDAlert(nctx, source, item)
+		if alert != nil {
+			out = append(out, *alert)
+		}
+	}
+	return out, nil
+}
+
+func (r Runner) fetchEPSS(ctx context.Context, fetcher fetch.Fetcher, nctx normalize.Context, source model.RegistrySource) ([]model.Alert, error) {
+	body, err := fetcher.Text(ctx, source.FeedURL, source.FollowRedirects, "text/csv, text/plain, application/gzip, */*;q=0.8")
+	if err != nil {
+		return nil, err
+	}
+	items, err := parse.ParseEPSS(body, 0.35, perSourceLimit(nctx.Config, source))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.Alert, 0, len(items))
+	for _, item := range items {
+		alert := normalize.EPSSAlert(nctx, source, item)
+		if alert != nil {
+			out = append(out, *alert)
+		}
+	}
+	return out, nil
+}
+
+func (r Runner) fetchURLhaus(ctx context.Context, fetcher fetch.Fetcher, nctx normalize.Context, source model.RegistrySource) ([]model.Alert, error) {
+	body, err := fetcher.Text(ctx, source.FeedURL, source.FollowRedirects, "text/csv, text/plain, */*;q=0.8")
+	if err != nil {
+		return nil, err
+	}
+	items, err := parse.ParseURLhausRecent(body, perSourceLimit(nctx.Config, source))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.Alert, 0, len(items))
+	for _, item := range items {
+		alert := normalize.URLhausAlert(nctx, source, item)
+		if alert != nil {
+			out = append(out, *alert)
+		}
+	}
+	return out, nil
+}
+
+func (r Runner) fetchUNSanctions(ctx context.Context, fetcher fetch.Fetcher, nctx normalize.Context, source model.RegistrySource) ([]model.Alert, error) {
+	body, err := fetcher.Text(ctx, source.FeedURL, source.FollowRedirects, "application/xml, text/xml;q=0.9, */*;q=0.8")
+	if err != nil {
+		return nil, err
+	}
+	items, err := parse.ParseUNSanctionsXML(body, normalize.MatchActorInText, perSourceLimit(nctx.Config, source))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.Alert, 0, len(items))
+	for _, item := range items {
+		alert := normalize.SanctionsAlert(nctx, source, item)
+		if alert != nil {
+			out = append(out, *alert)
+		}
+	}
+	return out, nil
+}
+
+func (r Runner) fetchOFACSanctions(ctx context.Context, fetcher fetch.Fetcher, nctx normalize.Context, source model.RegistrySource) ([]model.Alert, error) {
+	body, err := fetcher.Text(ctx, source.FeedURL, source.FollowRedirects, "application/xml, text/xml;q=0.9, */*;q=0.8")
+	if err != nil {
+		return nil, err
+	}
+	items, err := parse.ParseOFACSDNXML(body, normalize.MatchActorInText, perSourceLimit(nctx.Config, source))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.Alert, 0, len(items))
+	for _, item := range items {
+		alert := normalize.SanctionsAlert(nctx, source, item)
 		if alert != nil {
 			out = append(out, *alert)
 		}
