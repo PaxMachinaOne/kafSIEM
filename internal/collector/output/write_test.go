@@ -97,15 +97,22 @@ func TestWriteRegressionEmbedsIncidentArtifacts(t *testing.T) {
 		t.Fatal(err)
 	}
 	annotated := 0
+	primaries := 0
 	for _, alert := range written {
 		if alert.Incident != nil {
 			annotated++
 			if len(alert.Incident.RelatedAlertIDs) != 1 {
 				t.Fatalf("expected one related alert id, got %#v", alert.Incident.RelatedAlertIDs)
 			}
+			if alert.Incident.Role == "primary" {
+				primaries++
+			}
 		}
 	}
-	if annotated != 1 {
-		t.Fatalf("expected one annotated active alert, got %d", annotated)
+	if annotated != 2 {
+		t.Fatalf("expected both cluster members annotated, got %d", annotated)
+	}
+	if primaries != 1 {
+		t.Fatalf("expected exactly one primary member, got %d", primaries)
 	}
 }

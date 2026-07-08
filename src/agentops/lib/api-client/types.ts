@@ -329,8 +329,6 @@ export interface FusionMatch {
   source: string;
   canonical_url: string;
   match_reasons: string[];
-  incident_id?: string;
-  incident_member_count?: number;
 }
 
 export type AgentOpsMode = "OSINT" | "AGENTOPS" | "HYBRID";
