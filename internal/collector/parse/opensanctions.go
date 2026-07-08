@@ -69,16 +69,16 @@ func ParseOpenSanctionsEntities(body io.Reader, actorMatcher func(string) string
 
 func parseOpenSanctionsEntity(line string, actorMatcher func(string) string) (SanctionsItem, bool) {
 	var entity struct {
-		ID       string `json:"id"`
-		Caption  string `json:"caption"`
-		Schema   string `json:"schema"`
-		Datasets []string `json:"datasets"`
+		ID         string   `json:"id"`
+		Caption    string   `json:"caption"`
+		Schema     string   `json:"schema"`
+		Datasets   []string `json:"datasets"`
 		Properties struct {
-			Name     []string `json:"name"`
-			Alias    []string `json:"alias"`
-			Topics   []string `json:"topics"`
-			Country  []string `json:"country"`
-			Program  []string `json:"programId"`
+			Name    []string `json:"name"`
+			Alias   []string `json:"alias"`
+			Topics  []string `json:"topics"`
+			Country []string `json:"country"`
+			Program []string `json:"programId"`
 		} `json:"properties"`
 	}
 	if err := json.Unmarshal([]byte(line), &entity); err != nil {

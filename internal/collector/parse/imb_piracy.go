@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	imbRegionRe = regexp.MustCompile(`(?m)^(?:[A-Z][A-Z /&()-]{4,}|Red Sea / Gulf of Aden / Somalia / Arabian Sea / Indian Ocean)`)
+	imbRegionRe  = regexp.MustCompile(`(?m)^(?:[A-Z][A-Z /&()-]{4,}|Red Sea / Gulf of Aden / Somalia / Arabian Sea / Indian Ocean)`)
 	imbHTMLTagRe = regexp.MustCompile(`(?is)<[^>]+>`)
 )
 

@@ -12,13 +12,13 @@ import (
 // NVDItem is a normalized CVE record from the NVD CVE 2.0 API.
 type NVDItem struct {
 	FeedItem
-	CVEID       string
-	CVSSScore   float64
-	CVSSVector  string
-	Vendor      string
-	Product     string
+	CVEID        string
+	CVSSScore    float64
+	CVSSVector   string
+	Vendor       string
+	Product      string
 	LastModified string
-	VulnStatus  string
+	VulnStatus   string
 }
 
 // ParseNVD parses the NVD CVE 2.0 JSON response.
@@ -26,31 +26,31 @@ func ParseNVD(body []byte) ([]NVDItem, error) {
 	var doc struct {
 		Vulnerabilities []struct {
 			CVE struct {
-				ID             string `json:"id"`
-				Published      string `json:"published"`
-				LastModified   string `json:"lastModified"`
-				VulnStatus     string `json:"vulnStatus"`
-				Descriptions   []struct {
+				ID           string `json:"id"`
+				Published    string `json:"published"`
+				LastModified string `json:"lastModified"`
+				VulnStatus   string `json:"vulnStatus"`
+				Descriptions []struct {
 					Lang  string `json:"lang"`
 					Value string `json:"value"`
 				} `json:"descriptions"`
 				Metrics struct {
 					CVSSMetricV31 []struct {
 						CVSSData struct {
-							BaseScore  float64 `json:"baseScore"`
-							VectorString string `json:"vectorString"`
+							BaseScore    float64 `json:"baseScore"`
+							VectorString string  `json:"vectorString"`
 						} `json:"cvssData"`
 					} `json:"cvssMetricV31"`
 					CVSSMetricV30 []struct {
 						CVSSData struct {
-							BaseScore  float64 `json:"baseScore"`
-							VectorString string `json:"vectorString"`
+							BaseScore    float64 `json:"baseScore"`
+							VectorString string  `json:"vectorString"`
 						} `json:"cvssData"`
 					} `json:"cvssMetricV30"`
 					CVSSMetricV2 []struct {
 						CVSSData struct {
-							BaseScore  float64 `json:"baseScore"`
-							VectorString string `json:"vectorString"`
+							BaseScore    float64 `json:"baseScore"`
+							VectorString string  `json:"vectorString"`
 						} `json:"cvssData"`
 					} `json:"cvssMetricV2"`
 				} `json:"metrics"`
