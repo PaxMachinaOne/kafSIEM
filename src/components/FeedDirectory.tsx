@@ -12,9 +12,9 @@ import {
   ShieldAlert,
   TrendingUp,
 } from "lucide-react";
-import { useIncidents } from "@/hooks/useIncidents";
 import { isIncidentMember } from "@/lib/incident-links";
 import type { Alert, AlertCategory } from "@/types/alert";
+import type { IncidentSummary } from "@/types/incident";
 import type { SourceHealthDocument } from "@/types/source-health";
 import { categoryLabels, categoryBadge, categoryOrder } from "@/lib/severity";
 import { alertMatchesRegionFilter } from "@/lib/regions";
@@ -47,6 +47,9 @@ interface Props {
   onSeverityFilterChange: (filter: SeverityFilter) => void;
   incidentFilter?: boolean;
   onIncidentFilterChange?: (enabled: boolean) => void;
+  incidentSummaries?: IncidentSummary[];
+  incidentsApiAvailable?: boolean;
+  incidentMemberIds?: Set<string>;
   onSearchTerm?: (term: string) => void;
 }
 
@@ -65,11 +68,13 @@ export function FeedDirectory({
   onSeverityFilterChange,
   incidentFilter = false,
   onIncidentFilterChange,
+  incidentSummaries = [],
+  incidentsApiAvailable = false,
+  incidentMemberIds = new Set<string>(),
   onSearchTerm,
 }: Props) {
   const [now, setNow] = useState(() => Date.now());
   const [stableTotalSources, setStableTotalSources] = useState(0);
-  const { incidents, isAvailable: incidentsApiAvailable } = useIncidents(100);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 60_000);
@@ -192,14 +197,18 @@ export function FeedDirectory({
   const zoneSummary = useMemo(() => {
     const uniqueCountries = new Set(summaryAlerts.map((a) => a.source.country_code));
     const uniqueFeeds = new Set(summaryAlerts.map((a) => a.source_id));
+    const summaryAlertIds = new Set(summaryAlerts.map((a) => a.alert_id));
+    const visibleIncidentSummaries = incidentsApiAvailable
+      ? incidentSummaries.filter((incident) => incident.alert_ids.some((id) => summaryAlertIds.has(id)))
+      : [];
     const totalRegistered = sourceHealth?.total_sources ?? 0;
     const totalFeeds = stableTotalSources > 0
       ? stableTotalSources
       : totalRegistered > 0
         ? totalRegistered
         : uniqueFeeds.size;
-    const linkedInFeed = summaryAlerts.filter(isIncidentMember).length;
-    const linkedClusters = incidentsApiAvailable ? incidents.length : linkedInFeed;
+    const linkedInFeed = summaryAlerts.filter((alert) => isIncidentMember(alert) || incidentMemberIds.has(alert.alert_id)).length;
+    const linkedClusters = incidentsApiAvailable ? visibleIncidentSummaries.length : linkedInFeed;
     return {
       alerts: summaryAlerts.length,
       countries: uniqueCountries.size,
@@ -208,7 +217,7 @@ export function FeedDirectory({
       linkedClusters,
       linkedInFeed,
     };
-  }, [summaryAlerts, sourceHealth, stableTotalSources, incidents.length, incidentsApiAvailable]);
+  }, [summaryAlerts, sourceHealth, stableTotalSources, incidentSummaries, incidentsApiAvailable, incidentMemberIds]);
 
   const toggleSource = (sourceId: string) => {
     if (selectedSourceIds.includes(sourceId)) {

@@ -11,10 +11,11 @@ import { useAlertState } from "@/hooks/useAlertState";
 import { useSearch } from "@/hooks/useSearch";
 import { useSourceHealth } from "@/hooks/useSourceHealth";
 import { useCurrentConflicts } from "@/hooks/useCurrentConflicts";
+import { useIncidents } from "@/hooks/useIncidents";
 import type { ConflictCountryFocus } from "@/types/current-conflicts";
 import { alertMatchesRegionFilter } from "@/lib/regions";
 import { alertMatchesConflictLens, getConflictLensById } from "@/lib/conflict-lenses";
-import type { AlertCategory } from "@/types/alert";
+import type { Alert, AlertCategory } from "@/types/alert";
 import { isIncidentMember } from "@/lib/incident-links";
 
 type SeverityFilter = "critical" | "high" | null;
@@ -84,6 +85,7 @@ export default function App() {
   const { alerts: stateAlerts } = useAlertState();
   const { sourceHealth, isLoading: isSourceHealthLoading } = useSourceHealth();
   const { conflicts: currentConflicts } = useCurrentConflicts();
+  const { incidents, isAvailable: incidentsApiAvailable } = useIncidents(100);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([]);
   const [categoryFilter, setCategoryFilter] = useState<AlertCategory | "all">("all");
@@ -106,6 +108,19 @@ export default function App() {
   const activeDynamicConflict = useMemo(
     () => (conflictLensId ? currentConflicts.find((conflict) => conflict.lensIds.includes(conflictLensId)) ?? null : null),
     [conflictLensId, currentConflicts],
+  );
+  const incidentMemberIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const incident of incidents) {
+      for (const id of incident.alert_ids ?? []) {
+        ids.add(id);
+      }
+    }
+    return ids;
+  }, [incidents]);
+  const matchesIncidentFilter = useCallback(
+    (alert: Alert) => isIncidentMember(alert) || incidentMemberIds.has(alert.alert_id),
+    [incidentMemberIds],
   );
 
   useEffect(() => {
@@ -254,10 +269,10 @@ export default function App() {
       filtered = filtered.filter((alert) => alert.severity === severityFilter);
     }
     if (incidentFilter) {
-      filtered = filtered.filter((alert) => isIncidentMember(alert));
+      filtered = filtered.filter(matchesIncidentFilter);
     }
     return filtered;
-  }, [categoryFilter, incidentFilter, regionScopedAlerts, selectedSourceIds, severityFilter]);
+  }, [categoryFilter, incidentFilter, matchesIncidentFilter, regionScopedAlerts, selectedSourceIds, severityFilter]);
 
   const stateRegionScopedAlerts = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -307,10 +322,10 @@ export default function App() {
       filtered = filtered.filter((alert) => alert.severity === severityFilter);
     }
     if (incidentFilter) {
-      filtered = filtered.filter((alert) => isIncidentMember(alert));
+      filtered = filtered.filter(matchesIncidentFilter);
     }
     return filtered;
-  }, [categoryFilter, incidentFilter, stateRegionScopedAlerts, selectedSourceIds, severityFilter]);
+  }, [categoryFilter, incidentFilter, matchesIncidentFilter, stateRegionScopedAlerts, selectedSourceIds, severityFilter]);
 
   const handleCountrySelect = useCallback((countryCode: string) => {
     const nextRegion = `country:${countryCode}`;
@@ -347,6 +362,14 @@ export default function App() {
     setSelectedSourceIds(sourceIds);
     setSelectedId(null);
     // Switch right panel to now+history so counts match left panel totals
+    setRequestedViewModeKey((k) => k + 1);
+    setRequestedViewMode("now_history");
+  }, []);
+
+  const handleIncidentFilterChange = useCallback((enabled: boolean) => {
+    setIncidentFilter(enabled);
+    setSelectedId(null);
+    // Incident members can be in history, so show both queues when this filter changes.
     setRequestedViewModeKey((k) => k + 1);
     setRequestedViewMode("now_history");
   }, []);
@@ -430,7 +453,10 @@ export default function App() {
                 severityFilter={severityFilter}
                 onSeverityFilterChange={setSeverityFilter}
                 incidentFilter={incidentFilter}
-                onIncidentFilterChange={setIncidentFilter}
+                onIncidentFilterChange={handleIncidentFilterChange}
+                incidentSummaries={incidents}
+                incidentsApiAvailable={incidentsApiAvailable}
+                incidentMemberIds={incidentMemberIds}
                 onSearchTerm={setSearchQuery}
               />
             </Suspense>
