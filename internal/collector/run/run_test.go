@@ -116,6 +116,96 @@ func TestRunnerRunOnceWritesOutputs(t *testing.T) {
 	}
 }
 
+func TestProgressSnapshotPersistsOSINTIncidents(t *testing.T) {
+	dir := t.TempDir()
+	cfg := config.Default()
+	cfg.RegistryPath = filepath.Join(dir, "sources.db")
+	cfg.OutputPath = filepath.Join(dir, "alerts.json")
+	cfg.FilteredOutputPath = filepath.Join(dir, "filtered.json")
+	cfg.StateOutputPath = filepath.Join(dir, "state.json")
+	cfg.SourceHealthOutputPath = filepath.Join(dir, "health.json")
+	cfg.ReplacementQueuePath = filepath.Join(dir, "replacement.json")
+	cfg.MaxAgeDays = 10000
+
+	now := "2026-07-08T13:00:00Z"
+	alerts := []model.Alert{
+		{
+			AlertID:   "cert-a-cve",
+			SourceID:  "cert-a",
+			Title:     "CISA adds CVE-2026-1234 to known exploited vulnerabilities catalog",
+			Status:    "active",
+			Category:  "cyber_advisory",
+			Severity:  "critical",
+			FirstSeen: now,
+			LastSeen:  now,
+			Triage:    &model.Triage{RelevanceScore: 1},
+			Source: model.SourceMetadata{
+				SourceID:      "cert-a",
+				AuthorityName: "CERT A",
+				Country:       "United States",
+				CountryCode:   "US",
+				AuthorityType: "cert",
+			},
+		},
+		{
+			AlertID:   "cert-b-cve",
+			SourceID:  "cert-b",
+			Title:     "Patch advisory for CVE-2026-1234 in exposed edge routers",
+			Status:    "active",
+			Category:  "cyber_advisory",
+			Severity:  "high",
+			FirstSeen: now,
+			LastSeen:  now,
+			Triage:    &model.Triage{RelevanceScore: 1},
+			Source: model.SourceMetadata{
+				SourceID:      "cert-b",
+				AuthorityName: "CERT B",
+				Country:       "Germany",
+				CountryCode:   "DE",
+				AuthorityType: "cert",
+			},
+		},
+	}
+	health := []model.SourceHealthEntry{
+		{SourceID: "cert-a", AuthorityName: "CERT A", Status: "ok"},
+		{SourceID: "cert-b", AuthorityName: "CERT B", Status: "ok"},
+	}
+
+	runner := New(io.Discard, io.Discard)
+	runner.writeProgressSnapshot(context.Background(), cfg, alerts, nil, health, nil, len(health))
+
+	db, err := sourcedb.Open(cfg.RegistryPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	incidents, err := db.ListOSINTIncidents(context.Background(), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(incidents) != 1 {
+		t.Fatalf("expected one persisted incident, got %#v", incidents)
+	}
+	if incidents[0].AttackType != "cyber" {
+		t.Fatalf("expected cyber attack type, got %q", incidents[0].AttackType)
+	}
+	if len(incidents[0].CVEs) != 1 || incidents[0].CVEs[0] != "CVE-2026-1234" {
+		t.Fatalf("expected CVE relation, got %#v", incidents[0].CVEs)
+	}
+
+	detail, ok, err := db.GetOSINTIncident(context.Background(), incidents[0].IncidentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatalf("expected persisted incident %s", incidents[0].IncidentID)
+	}
+	if len(detail.Alerts) != 2 {
+		t.Fatalf("expected persisted member alerts for graph hydration, got %d", len(detail.Alerts))
+	}
+}
+
 func TestPrioritizeSourcesPrefersRankedCuratedHighValue(t *testing.T) {
 	sources := []model.RegistrySource{
 		{

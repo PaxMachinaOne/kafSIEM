@@ -312,7 +312,7 @@ func (r Runner) runOnce(ctx context.Context, cfg config.Config) error {
 						dlq.Remove(source.Source.SourceID)
 					}
 					if completed%25 == 0 || completed == 1 {
-						r.writeProgressSnapshot(cfg, alerts, previousAlerts, sourceHealth, previousSourceHealth, len(sources))
+						r.writeProgressSnapshot(ctx, cfg, alerts, previousAlerts, sourceHealth, previousSourceHealth, len(sources))
 						// Flush DLQ so background discovery can see dead sources early.
 						_ = dlq.Write(cfg.ReplacementQueuePath)
 					}
@@ -332,7 +332,7 @@ func (r Runner) runOnce(ctx context.Context, cfg config.Config) error {
 		}
 		wg.Wait()
 		// Snapshot after fast pass completes.
-		r.writeProgressSnapshot(cfg, alerts, previousAlerts, sourceHealth, previousSourceHealth, len(sources))
+		r.writeProgressSnapshot(ctx, cfg, alerts, previousAlerts, sourceHealth, previousSourceHealth, len(sources))
 	}
 
 	// API pass — structured sources with full timeout, but no browser transport.
@@ -394,7 +394,7 @@ func (r Runner) runOnce(ctx context.Context, cfg config.Config) error {
 						dlq.Remove(source.Source.SourceID)
 					}
 					if completed%25 == 0 {
-						r.writeProgressSnapshot(cfg, alerts, previousAlerts, sourceHealth, previousSourceHealth, len(sources))
+						r.writeProgressSnapshot(ctx, cfg, alerts, previousAlerts, sourceHealth, previousSourceHealth, len(sources))
 						_ = dlq.Write(cfg.ReplacementQueuePath)
 					}
 					mu.Unlock()
@@ -412,7 +412,7 @@ func (r Runner) runOnce(ctx context.Context, cfg config.Config) error {
 			}()
 		}
 		wg.Wait()
-		r.writeProgressSnapshot(cfg, alerts, previousAlerts, sourceHealth, previousSourceHealth, len(sources))
+		r.writeProgressSnapshot(ctx, cfg, alerts, previousAlerts, sourceHealth, previousSourceHealth, len(sources))
 	}
 
 	// Browser pass — sequential, with cadence/rate-limit handling.
@@ -513,7 +513,7 @@ func (r Runner) runOnce(ctx context.Context, cfg config.Config) error {
 			dlq.Remove(source.Source.SourceID)
 		}
 		if completed%25 == 0 {
-			r.writeProgressSnapshot(cfg, alerts, previousAlerts, sourceHealth, previousSourceHealth, len(sources))
+			r.writeProgressSnapshot(ctx, cfg, alerts, previousAlerts, sourceHealth, previousSourceHealth, len(sources))
 			_ = dlq.Write(cfg.ReplacementQueuePath)
 		}
 	}
@@ -702,7 +702,7 @@ func (r Runner) syncRegistrySeed(ctx context.Context, cfg config.Config) error {
 	return nil
 }
 
-func (r Runner) writeProgressSnapshot(cfg config.Config, freshAlerts []model.Alert, previousAlerts []model.Alert, sourceHealth []model.SourceHealthEntry, previousSourceHealth []model.SourceHealthEntry, totalRegistrySources int) {
+func (r Runner) writeProgressSnapshot(ctx context.Context, cfg config.Config, freshAlerts []model.Alert, previousAlerts []model.Alert, sourceHealth []model.SourceHealthEntry, previousSourceHealth []model.SourceHealthEntry, totalRegistrySources int) {
 	// Merge fresh alerts with previous state so the dashboard never goes
 	// blank during a sweep. Previous alerts that aren't in the fresh batch
 	// are carried forward as-is — but only for sources that haven't been
@@ -739,6 +739,14 @@ func (r Runner) writeProgressSnapshot(cfg config.Config, freshAlerts []model.Ale
 	duplicateAudit.SuppressedCrossSourceDuplicates += crossSuppressed
 	if err := output.WriteWithTotal(cfg, active, filtered, active, mergedHealth, duplicateAudit, nil, totalRegistrySources, incidents); err != nil {
 		fmt.Fprintf(r.stderr, "WARN progress snapshot write failed: %v\n", err)
+		return
+	}
+	if err := saveAlertState(ctx, cfg, active); err != nil {
+		fmt.Fprintf(r.stderr, "WARN progress snapshot alert DB save failed: %v\n", err)
+		return
+	}
+	if err := saveOSINTIncidents(ctx, cfg, incidents); err != nil {
+		fmt.Fprintf(r.stderr, "WARN progress snapshot incident DB save failed: %v\n", err)
 		return
 	}
 	fmt.Fprintf(r.stdout, "Progress snapshot: %d active alerts (%d fresh + %d previous) after %d/%d sources\n", len(active), len(freshAlerts), len(previousAlerts), len(sourceHealth), totalRegistrySources)
