@@ -55,6 +55,16 @@ export function alertsURL(): string {
   return isAgentOpsDemo() ? appURL("demo/alerts.json") : appURL("alerts.json");
 }
 
+export function incidentsURL(): string {
+  return isAgentOpsDemo() ? appURL("demo/incidents.json") : appURL("api/osint/incidents");
+}
+
+export function incidentDetailURL(incidentId: string): string {
+  return isAgentOpsDemo()
+    ? appURL(`demo/incidents/${incidentId}.json`)
+    : appURL(`api/osint/incidents/${encodeURIComponent(incidentId)}`);
+}
+
 export function agentOpsGroupsURL(): string {
   return isAgentOpsDemo() ? appURL("demo/agentops-groups.json") : "/api/agentops/groups";
 }

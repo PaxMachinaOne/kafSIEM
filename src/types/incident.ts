@@ -11,12 +11,57 @@ export interface IncidentSummary {
   link_reasons?: string[];
   cves?: string[];
   entities?: string[];
+  countries?: string[];
   first_seen: string;
   last_seen: string;
 }
 
+export interface IncidentTimelineEntry {
+  alert_id: string;
+  first_seen: string;
+  last_seen?: string;
+  source_id: string;
+  authority_name: string;
+  title: string;
+  severity: string;
+  category: string;
+  country_code?: string;
+  role?: string;
+}
+
+export interface IncidentGraphNode {
+  id: string;
+  kind: string;
+  label: string;
+  source_id: string;
+  country_code?: string;
+  severity: string;
+  role?: string;
+  lat?: number;
+  lng?: number;
+}
+
+export interface IncidentGraphEdge {
+  from: string;
+  to: string;
+  reason: string;
+}
+
+export interface IncidentGraph {
+  nodes: IncidentGraphNode[];
+  edges: IncidentGraphEdge[];
+}
+
+export interface IncidentGeoSummary {
+  country_codes: string[];
+  countries?: string[];
+}
+
 export interface IncidentDetail extends IncidentSummary {
   alerts: Alert[];
+  geo: IncidentGeoSummary;
+  timeline: IncidentTimelineEntry[];
+  graph: IncidentGraph;
 }
 
 export interface IncidentsListResponse {

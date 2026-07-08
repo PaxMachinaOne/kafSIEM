@@ -13,7 +13,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { useIncidents } from "@/hooks/useIncidents";
-import { isIncidentAnchor } from "@/lib/incident-links";
+import { isIncidentMember } from "@/lib/incident-links";
 import type { Alert, AlertCategory } from "@/types/alert";
 import type { SourceHealthDocument } from "@/types/source-health";
 import { categoryLabels, categoryBadge, categoryOrder } from "@/lib/severity";
@@ -45,6 +45,8 @@ interface Props {
   onSelectCountry: (countryCode: string) => void;
   severityFilter: SeverityFilter;
   onSeverityFilterChange: (filter: SeverityFilter) => void;
+  incidentFilter?: boolean;
+  onIncidentFilterChange?: (enabled: boolean) => void;
   onSearchTerm?: (term: string) => void;
 }
 
@@ -61,6 +63,8 @@ export function FeedDirectory({
   onSelectCountry,
   severityFilter,
   onSeverityFilterChange,
+  incidentFilter = false,
+  onIncidentFilterChange,
   onSearchTerm,
 }: Props) {
   const [now, setNow] = useState(() => Date.now());
@@ -194,7 +198,7 @@ export function FeedDirectory({
       : totalRegistered > 0
         ? totalRegistered
         : uniqueFeeds.size;
-    const linkedInFeed = summaryAlerts.filter(isIncidentAnchor).length;
+    const linkedInFeed = summaryAlerts.filter(isIncidentMember).length;
     const linkedClusters = incidentsApiAvailable ? incidents.length : linkedInFeed;
     return {
       alerts: summaryAlerts.length,
@@ -308,13 +312,22 @@ export function FeedDirectory({
         </div>
 
         {zoneSummary.linkedClusters > 0 ? (
-          <div className="flex items-center gap-1.5 rounded-md border border-siem-border bg-siem-panel-strong px-2.5 py-1.5 text-4xs uppercase tracking-[0.14em] text-siem-muted">
+          <button
+            type="button"
+            onClick={() => onIncidentFilterChange?.(!incidentFilter)}
+            className={`flex w-full items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-4xs uppercase tracking-[0.14em] transition-colors ${
+              incidentFilter
+                ? "border-siem-accent/45 bg-siem-accent/12 text-siem-text"
+                : "border-siem-border bg-siem-panel-strong text-siem-muted hover:border-siem-accent/30"
+            }`}
+          >
             <GitBranch size={10} className="text-siem-accent" />
             <span>
               {zoneSummary.linkedClusters} linked incident{zoneSummary.linkedClusters === 1 ? "" : "s"}
               {incidentsApiAvailable ? "" : ` · ${zoneSummary.linkedInFeed} in feed`}
+              {incidentFilter ? " · filter on" : ""}
             </span>
-          </div>
+          </button>
         ) : null}
 
         {/* ── Category breakdown ──────────────────────────────────── */}

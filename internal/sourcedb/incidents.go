@@ -16,7 +16,10 @@ import (
 
 type OSINTIncidentDetail struct {
 	model.IncidentSummary
-	Alerts []model.Alert `json:"alerts"`
+	Alerts   []model.Alert                    `json:"alerts"`
+	Geo      model.IncidentGeoSummary         `json:"geo"`
+	Timeline []model.IncidentTimelineEntry    `json:"timeline"`
+	Graph    model.IncidentGraph              `json:"graph"`
 }
 
 func (db *DB) SaveOSINTIncidents(ctx context.Context, incidents []model.IncidentSummary) error {
@@ -39,15 +42,16 @@ func (db *DB) SaveOSINTIncidents(ctx context.Context, incidents []model.Incident
 		reasonsJSON, _ := json.Marshal(incident.LinkReasons)
 		cvesJSON, _ := json.Marshal(incident.CVEs)
 		entitiesJSON, _ := json.Marshal(incident.Entities)
+		countriesJSON, _ := json.Marshal(incident.Countries)
 		if _, err := tx.ExecContext(ctx, `
 INSERT INTO osint_incidents (
   incident_id, title, category, severity, member_count, primary_alert_id,
-  alert_ids_json, link_reasons_json, cves_json, entities_json,
+  alert_ids_json, link_reasons_json, cves_json, entities_json, countries_json,
   first_seen, last_seen, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `, incident.IncidentID, incident.Title, incident.Category, incident.Severity, incident.MemberCount,
 			incident.PrimaryAlertID, string(alertIDsJSON), string(reasonsJSON), string(cvesJSON),
-			string(entitiesJSON), incident.FirstSeen, incident.LastSeen, updatedAt); err != nil {
+			string(entitiesJSON), string(countriesJSON), incident.FirstSeen, incident.LastSeen, updatedAt); err != nil {
 			return fmt.Errorf("insert osint incident %s: %w", incident.IncidentID, err)
 		}
 	}
@@ -67,7 +71,7 @@ func (db *DB) ListOSINTIncidents(ctx context.Context, limit int) ([]model.Incide
 	}
 	rows, err := db.sql.QueryContext(ctx, `
 SELECT incident_id, title, category, severity, member_count, primary_alert_id,
-       alert_ids_json, link_reasons_json, cves_json, entities_json, first_seen, last_seen
+       alert_ids_json, link_reasons_json, cves_json, entities_json, countries_json, first_seen, last_seen
   FROM osint_incidents
  ORDER BY last_seen DESC, incident_id ASC
  LIMIT ?
@@ -99,7 +103,7 @@ func (db *DB) GetOSINTIncident(ctx context.Context, incidentID string) (OSINTInc
 
 	row := db.sql.QueryRowContext(ctx, `
 SELECT incident_id, title, category, severity, member_count, primary_alert_id,
-       alert_ids_json, link_reasons_json, cves_json, entities_json, first_seen, last_seen
+       alert_ids_json, link_reasons_json, cves_json, entities_json, countries_json, first_seen, last_seen
   FROM osint_incidents
  WHERE incident_id = ?
 `, incidentID)
@@ -122,7 +126,10 @@ SELECT incident_id, title, category, severity, member_count, primary_alert_id,
 		}
 	}
 
-	return OSINTIncidentDetail{IncidentSummary: summary, Alerts: alerts}, true, nil
+	return OSINTIncidentDetail{
+		IncidentSummary: summary,
+		Alerts:          alerts,
+	}, true, nil
 }
 
 func (db *DB) loadAlertByID(ctx context.Context, alertID string) (model.Alert, bool, error) {
@@ -164,10 +171,10 @@ type incidentScanner interface {
 
 func scanIncidentSummaryRow(row incidentScanner) (model.IncidentSummary, error) {
 	var item model.IncidentSummary
-	var alertIDsJSON, reasonsJSON, cvesJSON, entitiesJSON string
+	var alertIDsJSON, reasonsJSON, cvesJSON, entitiesJSON, countriesJSON string
 	if err := row.Scan(
 		&item.IncidentID, &item.Title, &item.Category, &item.Severity, &item.MemberCount,
-		&item.PrimaryAlertID, &alertIDsJSON, &reasonsJSON, &cvesJSON, &entitiesJSON,
+		&item.PrimaryAlertID, &alertIDsJSON, &reasonsJSON, &cvesJSON, &entitiesJSON, &countriesJSON,
 		&item.FirstSeen, &item.LastSeen,
 	); err != nil {
 		return model.IncidentSummary{}, err
@@ -176,5 +183,6 @@ func scanIncidentSummaryRow(row incidentScanner) (model.IncidentSummary, error) 
 	_ = json.Unmarshal([]byte(reasonsJSON), &item.LinkReasons)
 	_ = json.Unmarshal([]byte(cvesJSON), &item.CVEs)
 	_ = json.Unmarshal([]byte(entitiesJSON), &item.Entities)
+	_ = json.Unmarshal([]byte(countriesJSON), &item.Countries)
 	return item, nil
 }

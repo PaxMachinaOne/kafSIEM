@@ -105,11 +105,11 @@ func TestFinalizeActiveAlertsCrossSourceBeforeDedup(t *testing.T) {
 	}
 
 	finalized, summaries, suppressed := FinalizeActiveAlerts(alerts)
-	if suppressed != 1 {
-		t.Fatalf("expected one suppressed corroborator, got %d", suppressed)
+	if suppressed != 0 {
+		t.Fatalf("expected incident members to remain in feed, got %d suppressed", suppressed)
 	}
-	if len(finalized) != 1 {
-		t.Fatalf("expected one active alert after finalize, got %d", len(finalized))
+	if len(finalized) != 2 {
+		t.Fatalf("expected both incident members in active feed, got %d", len(finalized))
 	}
 	if len(summaries) != 1 || summaries[0].MemberCount != 2 {
 		t.Fatalf("expected incident with 2 members, got %#v", summaries)

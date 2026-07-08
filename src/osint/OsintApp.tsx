@@ -15,6 +15,7 @@ import type { ConflictCountryFocus } from "@/types/current-conflicts";
 import { alertMatchesRegionFilter } from "@/lib/regions";
 import { alertMatchesConflictLens, getConflictLensById } from "@/lib/conflict-lenses";
 import type { AlertCategory } from "@/types/alert";
+import { isIncidentMember } from "@/lib/incident-links";
 
 type SeverityFilter = "critical" | "high" | null;
 
@@ -84,6 +85,7 @@ export default function App() {
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([]);
   const [categoryFilter, setCategoryFilter] = useState<AlertCategory | "all">("all");
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>(null);
+  const [incidentFilter, setIncidentFilter] = useState(false);
   const [regionFilter, setRegionFilter] = useState<string>("Europe");
   const [conflictLensId, setConflictLensId] = useState<string | null>(null);
   const [conflictCountryFocus, setConflictCountryFocus] = useState<ConflictCountryFocus | null>(null);
@@ -247,8 +249,11 @@ export default function App() {
     if (severityFilter) {
       filtered = filtered.filter((alert) => alert.severity === severityFilter);
     }
+    if (incidentFilter) {
+      filtered = filtered.filter((alert) => isIncidentMember(alert));
+    }
     return filtered;
-  }, [categoryFilter, regionScopedAlerts, selectedSourceIds, severityFilter]);
+  }, [categoryFilter, incidentFilter, regionScopedAlerts, selectedSourceIds, severityFilter]);
 
   const stateRegionScopedAlerts = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -297,8 +302,11 @@ export default function App() {
     if (severityFilter) {
       filtered = filtered.filter((alert) => alert.severity === severityFilter);
     }
+    if (incidentFilter) {
+      filtered = filtered.filter((alert) => isIncidentMember(alert));
+    }
     return filtered;
-  }, [categoryFilter, stateRegionScopedAlerts, selectedSourceIds, severityFilter]);
+  }, [categoryFilter, incidentFilter, stateRegionScopedAlerts, selectedSourceIds, severityFilter]);
 
   const handleCountrySelect = useCallback((countryCode: string) => {
     const nextRegion = `country:${countryCode}`;
@@ -407,6 +415,8 @@ export default function App() {
               onSelectCountry={handleCountrySelect}
               severityFilter={severityFilter}
               onSeverityFilterChange={setSeverityFilter}
+              incidentFilter={incidentFilter}
+              onIncidentFilterChange={setIncidentFilter}
               onSearchTerm={setSearchQuery}
             />
           </Suspense>

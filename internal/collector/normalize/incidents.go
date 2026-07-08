@@ -18,16 +18,19 @@ import (
 var cvePattern = regexp.MustCompile(`(?i)\bCVE-\d{4}-\d{4,}\b`)
 
 const (
-	cveIncidentWindowHours    = 14 * 24
-	entityIncidentWindowHours = 7 * 24
+	cveIncidentWindowHours     = 14 * 24
+	entityIncidentWindowHours  = 7 * 24
+	countryIncidentWindowHours = 7 * 24
+	countryWeakJaccardThreshold = 0.35
 )
 
 type incidentFingerprints struct {
-	alert  model.Alert
-	tokens []string
-	ts     time.Time
-	cves   []string
-	actors []string
+	alert   model.Alert
+	tokens  []string
+	ts      time.Time
+	cves    []string
+	actors  []string
+	country string
 }
 
 type alertUnion struct {
@@ -66,7 +69,8 @@ func (u *alertUnion) union(a, b string) {
 }
 
 // ApplyIncidentLinks annotates active alerts with incident clusters built from
-// cross-source fingerprint similarity, shared CVE identifiers, and shared actors.
+// cross-source fingerprint similarity, shared CVE identifiers, shared actors,
+// and shared event geography.
 func ApplyIncidentLinks(alerts []model.Alert) ([]model.Alert, []model.IncidentSummary) {
 	if len(alerts) == 0 {
 		return alerts, nil
@@ -83,11 +87,12 @@ func ApplyIncidentLinks(alerts []model.Alert) ([]model.Alert, []model.IncidentSu
 			continue
 		}
 		fps = append(fps, incidentFingerprints{
-			alert:  alert,
-			tokens: tokens,
-			ts:     parseAlertTime(alert),
-			cves:   extractCVEs(alert.Title),
-			actors: extractEntityNames(tokens),
+			alert:   alert,
+			tokens:  tokens,
+			ts:      parseAlertTime(alert),
+			cves:    extractCVEs(alert.Title),
+			actors:  extractEntityNames(tokens),
+			country: eventCountryCode(alert),
 		})
 	}
 
@@ -166,6 +171,20 @@ func ApplyIncidentLinks(alerts []model.Alert) ([]model.Alert, []model.IncidentSu
 		}
 	}
 
+	for i := range fps {
+		for j := i + 1; j < len(fps); j++ {
+			left := fps[i]
+			right := fps[j]
+			if !shouldCountryLink(left, right) {
+				continue
+			}
+			union.union(left.alert.AlertID, right.alert.AlertID)
+			reason := "shared_country:" + strings.ToUpper(left.country)
+			reasonsByAlert[left.alert.AlertID] = appendUniqueString(reasonsByAlert[left.alert.AlertID], reason)
+			reasonsByAlert[right.alert.AlertID] = appendUniqueString(reasonsByAlert[right.alert.AlertID], reason)
+		}
+	}
+
 	groups := make(map[string][]string)
 	for _, fp := range fps {
 		root := union.find(fp.alert.AlertID)
@@ -183,12 +202,6 @@ func ApplyIncidentLinks(alerts []model.Alert) ([]model.Alert, []model.IncidentSu
 		}
 		incidentID := incidentIDFromParts("bundle", root)
 		primary := pickPrimaryAlert(memberIDs, alertIndex)
-		related := make([]string, 0, len(memberIDs)-1)
-		for _, id := range memberIDs {
-			if id != primary.AlertID {
-				related = append(related, id)
-			}
-		}
 		reasons := uniqueSorted(collectReasons(memberIDs, reasonsByAlert))
 		sharedCVEs := uniqueSorted(collectCVEs(memberIDs, cvesByAlert))
 		sharedEntities := uniqueSorted(collectActors(memberIDs, actorsByAlert))
@@ -196,19 +209,14 @@ func ApplyIncidentLinks(alerts []model.Alert) ([]model.Alert, []model.IncidentSu
 		for _, id := range memberIDs {
 			memberAlerts = append(memberAlerts, alertIndex[id])
 		}
+		sharedCountries := collectCountries(memberIDs, alertIndex)
 		reasons = ApplyAnchorCorroboration(reasons, memberAlerts, sharedCVEs, sharedEntities, anchors)
-		link := &model.IncidentLink{
-			IncidentID:      incidentID,
-			MemberCount:     len(memberIDs),
-			PrimaryAlertID:  primary.AlertID,
-			RelatedAlertIDs: related,
-			LinkReasons:     reasons,
-			SharedCVEs:      sharedCVEs,
-			SharedEntities:  sharedEntities,
-		}
-		for i := range out {
-			if out[i].AlertID == primary.AlertID {
-				out[i].Incident = link
+		for _, id := range memberIDs {
+			for i := range out {
+				if out[i].AlertID != id {
+					continue
+				}
+				out[i].Incident = buildIncidentLink(incidentID, primary.AlertID, id, memberIDs, reasons, sharedCVEs, sharedEntities, sharedCountries)
 				break
 			}
 		}
@@ -223,6 +231,7 @@ func ApplyIncidentLinks(alerts []model.Alert) ([]model.Alert, []model.IncidentSu
 			LinkReasons:    reasons,
 			CVEs:           sharedCVEs,
 			Entities:       sharedEntities,
+			Countries:      sharedCountries,
 			FirstSeen:      earliestSeen(memberIDs, alertIndex),
 			LastSeen:       latestSeen(memberIDs, alertIndex),
 		})
@@ -270,6 +279,92 @@ func extractEntityNames(tokens []string) []string {
 		out = appendUniqueString(out, strings.TrimPrefix(token, "entity:"))
 	}
 	return out
+}
+
+func buildIncidentLink(
+	incidentID string,
+	primaryAlertID string,
+	alertID string,
+	memberIDs []string,
+	reasons []string,
+	sharedCVEs []string,
+	sharedEntities []string,
+	sharedCountries []string,
+) *model.IncidentLink {
+	related := make([]string, 0, len(memberIDs)-1)
+	for _, id := range memberIDs {
+		if id != alertID {
+			related = append(related, id)
+		}
+	}
+	role := "member"
+	if alertID == primaryAlertID {
+		role = "primary"
+	}
+	return &model.IncidentLink{
+		IncidentID:      incidentID,
+		MemberCount:     len(memberIDs),
+		PrimaryAlertID:  primaryAlertID,
+		Role:            role,
+		RelatedAlertIDs: related,
+		LinkReasons:     reasons,
+		SharedCVEs:      sharedCVEs,
+		SharedEntities:  sharedEntities,
+		SharedCountries: sharedCountries,
+	}
+}
+
+func eventCountryCode(alert model.Alert) string {
+	return strings.ToUpper(strings.TrimSpace(alert.EventCountryCode))
+}
+
+func countryLinkCategory(category string) bool {
+	switch category {
+	case "terrorism_tip", "conflict_monitoring", "travel_warning", "humanitarian_security", "maritime_security", "public_safety":
+		return true
+	default:
+		return false
+	}
+}
+
+func shouldCountryLink(left, right incidentFingerprints) bool {
+	if left.country == "" || left.country != right.country {
+		return false
+	}
+	if left.alert.SourceID == right.alert.SourceID {
+		return false
+	}
+	if !countryLinkCategory(left.alert.Category) || left.alert.Category != right.alert.Category {
+		return false
+	}
+	if hoursApart(left.ts, right.ts) > countryIncidentWindowHours {
+		return false
+	}
+	if jaccardSimilarity(left.tokens, right.tokens) >= countryWeakJaccardThreshold {
+		return true
+	}
+	if len(intersectStrings(left.actors, right.actors)) > 0 {
+		return true
+	}
+	if len(intersectStrings(left.cves, right.cves)) > 0 {
+		return true
+	}
+	return false
+}
+
+func collectCountries(memberIDs []string, alertIndex map[string]model.Alert) []string {
+	out := make([]string, 0)
+	for _, id := range memberIDs {
+		alert := alertIndex[id]
+		if code := eventCountryCode(alert); code != "" {
+			out = append(out, code)
+			continue
+		}
+		if code := strings.ToUpper(strings.TrimSpace(alert.Source.CountryCode)); code != "" {
+			out = append(out, code)
+		}
+	}
+	return uniqueSorted(out)
 }
 
 func entityLinkCategory(category string) bool {

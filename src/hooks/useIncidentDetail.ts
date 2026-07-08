@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
-import { appURL } from "@/lib/app-url";
+import { incidentDetailURL } from "@/agentops/lib/demo";
 import type { IncidentDetail } from "@/types/incident";
-
-const INCIDENTS_URL = appURL("api/osint/incidents");
 
 export function useIncidentDetail(incidentId: string | undefined, enabled = true) {
   const [detail, setDetail] = useState<IncidentDetail | null>(null);
@@ -23,7 +21,7 @@ export function useIncidentDetail(incidentId: string | undefined, enabled = true
       setIsLoading(true);
       try {
         const response = await fetch(
-          `${INCIDENTS_URL}/${encodeURIComponent(incidentId)}?t=${Date.now()}`,
+          `${incidentDetailURL(incidentId)}?t=${Date.now()}`,
           { cache: "no-store", signal: controller.signal },
         );
         if (!response.ok) {

@@ -1,0 +1,23 @@
+{
+  "items": [
+    {
+      "incident_id": "inc-demo-cve-12345",
+      "title": "Critical F5 BIG-IP advisory for CVE-2026-12345",
+      "category": "cyber_advisory",
+      "severity": "high",
+      "member_count": 3,
+      "primary_alert_id": "advisory-f5-2026-12345",
+      "alert_ids": [
+        "advisory-f5-2026-12345",
+        "advisory-cisa-2026-12345",
+        "advisory-vendor-2026-12345"
+      ],
+      "link_reasons": ["shared_cve:CVE-2026-12345"],
+      "cves": ["CVE-2026-12345"],
+      "countries": ["DE", "US"],
+      "first_seen": "2026-04-16T09:30:00Z",
+      "last_seen": "2026-04-16T10:15:00Z"
+    }
+  ],
+  "count": 1
+}

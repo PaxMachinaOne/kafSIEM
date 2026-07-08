@@ -30,9 +30,87 @@
       "incident_id": "inc-demo-cve-12345",
       "member_count": 3,
       "primary_alert_id": "advisory-f5-2026-12345",
+      "role": "primary",
       "related_alert_ids": ["advisory-cisa-2026-12345", "advisory-vendor-2026-12345"],
       "link_reasons": ["shared_cve:CVE-2026-12345"],
-      "shared_cves": ["CVE-2026-12345"]
+      "shared_cves": ["CVE-2026-12345"],
+      "shared_countries": ["DE", "US"]
+    }
+  },
+  {
+    "alert_id": "advisory-cisa-2026-12345",
+    "source_id": "cisa-kev",
+    "source": {
+      "source_id": "cisa-kev",
+      "authority_name": "CISA",
+      "country": "United States",
+      "country_code": "US",
+      "region": "North America",
+      "authority_type": "cert",
+      "base_url": "https://www.cisa.gov"
+    },
+    "title": "CISA adds CVE-2026-12345 to KEV catalog",
+    "canonical_url": "https://www.cisa.gov/kev/cve-2026-12345",
+    "first_seen": "2026-04-16T09:50:00Z",
+    "last_seen": "2026-04-16T10:00:00Z",
+    "status": "active",
+    "category": "cyber_advisory",
+    "severity": "critical",
+    "region_tag": "NA",
+    "lat": 38.9,
+    "lng": -77.03,
+    "freshness_hours": 1,
+    "triage": {
+      "relevance_score": 0.95,
+      "disposition": "active"
+    },
+    "incident": {
+      "incident_id": "inc-demo-cve-12345",
+      "member_count": 3,
+      "primary_alert_id": "advisory-f5-2026-12345",
+      "role": "member",
+      "related_alert_ids": ["advisory-f5-2026-12345", "advisory-vendor-2026-12345"],
+      "link_reasons": ["shared_cve:CVE-2026-12345"],
+      "shared_cves": ["CVE-2026-12345"],
+      "shared_countries": ["DE", "US"]
+    }
+  },
+  {
+    "alert_id": "advisory-vendor-2026-12345",
+    "source_id": "f5-advisories",
+    "source": {
+      "source_id": "f5-advisories",
+      "authority_name": "F5 Networks",
+      "country": "United States",
+      "country_code": "US",
+      "region": "North America",
+      "authority_type": "vendor",
+      "base_url": "https://www.f5.com"
+    },
+    "title": "Vendor patch guidance for CVE-2026-12345 in BIG-IP",
+    "canonical_url": "https://www.f5.com/advisory/cve-2026-12345",
+    "first_seen": "2026-04-16T10:05:00Z",
+    "last_seen": "2026-04-16T10:15:00Z",
+    "status": "active",
+    "category": "cyber_advisory",
+    "severity": "high",
+    "region_tag": "NA",
+    "lat": 45.52,
+    "lng": -122.68,
+    "freshness_hours": 1,
+    "triage": {
+      "relevance_score": 0.88,
+      "disposition": "active"
+    },
+    "incident": {
+      "incident_id": "inc-demo-cve-12345",
+      "member_count": 3,
+      "primary_alert_id": "advisory-f5-2026-12345",
+      "role": "member",
+      "related_alert_ids": ["advisory-f5-2026-12345", "advisory-cisa-2026-12345"],
+      "link_reasons": ["shared_cve:CVE-2026-12345"],
+      "shared_cves": ["CVE-2026-12345"],
+      "shared_countries": ["DE", "US"]
     }
   }
 ]

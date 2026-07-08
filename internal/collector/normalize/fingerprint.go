@@ -335,7 +335,8 @@ func crossSourceDedup(alerts []model.Alert) ([]model.Alert, int) {
 		}
 	}
 
-	// From each cluster, keep the highest-scoring alert.
+	// From each cluster, keep the highest-scoring alert unless the cluster is an
+	// incident bundle — then retain every annotated member for analyst visibility.
 	kept := append([]model.Alert{}, passthrough...)
 	suppressed := 0
 	for _, c := range clusters {
@@ -343,6 +344,16 @@ func crossSourceDedup(alerts []model.Alert) ([]model.Alert, int) {
 			kept = append(kept, c.members[0].alert)
 			continue
 		}
+
+		incidentMembers := incidentClusterMembers(c.members)
+		if len(incidentMembers) >= 2 {
+			for _, member := range incidentMembers {
+				kept = append(kept, member.alert)
+			}
+			suppressed += len(c.members) - len(incidentMembers)
+			continue
+		}
+
 		sort.Slice(c.members, func(i, j int) bool {
 			si := alertScore(c.members[i].alert)
 			sj := alertScore(c.members[j].alert)
@@ -356,6 +367,35 @@ func crossSourceDedup(alerts []model.Alert) ([]model.Alert, int) {
 		suppressed += len(c.members) - 1
 	}
 	return kept, suppressed
+}
+
+func incidentClusterMembers(members []fingerprintedAlert) []fingerprintedAlert {
+	if len(members) < 2 {
+		return nil
+	}
+	incidentID := ""
+	for _, member := range members {
+		link := member.alert.Incident
+		if link == nil || link.MemberCount < 2 || strings.TrimSpace(link.IncidentID) == "" {
+			continue
+		}
+		if incidentID == "" {
+			incidentID = link.IncidentID
+		}
+		if link.IncidentID != incidentID {
+			return nil
+		}
+	}
+	if incidentID == "" {
+		return nil
+	}
+	out := make([]fingerprintedAlert, 0, len(members))
+	for _, member := range members {
+		if member.alert.Incident != nil && member.alert.Incident.IncidentID == incidentID {
+			out = append(out, member)
+		}
+	}
+	return out
 }
 
 func parseAlertTime(alert model.Alert) time.Time {

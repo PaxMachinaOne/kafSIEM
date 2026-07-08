@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
-import { appURL } from "@/lib/app-url";
+import { incidentsURL } from "@/agentops/lib/demo";
 import type { IncidentSummary, IncidentsListResponse } from "@/types/incident";
-
-const INCIDENTS_URL = appURL("api/osint/incidents");
 const POLL_MS = 15000;
 
 export function useIncidents(limit = 50) {
@@ -15,7 +13,7 @@ export function useIncidents(limit = 50) {
 
     async function load() {
       try {
-        const response = await fetch(`${INCIDENTS_URL}?limit=${limit}&t=${Date.now()}`, {
+        const response = await fetch(`${incidentsURL()}?limit=${limit}&t=${Date.now()}`, {
           cache: "no-store",
         });
         if (!response.ok) {

@@ -90,7 +90,7 @@ func TestApplyIncidentLinksRegressionDeterministicID(t *testing.T) {
 	}
 }
 
-func TestApplyIncidentLinksRegressionOnlyPrimaryAnnotated(t *testing.T) {
+func TestApplyIncidentLinksRegressionAllMembersAnnotated(t *testing.T) {
 	alerts := []model.Alert{
 		{
 			AlertID:   "low",
@@ -119,14 +119,24 @@ func TestApplyIncidentLinksRegressionOnlyPrimaryAnnotated(t *testing.T) {
 	}
 	annotated := 0
 	for _, alert := range linked {
-		if alert.Incident != nil {
-			annotated++
-			if alert.AlertID != summaries[0].PrimaryAlertID {
-				t.Fatalf("expected only primary %s annotated, got %s", summaries[0].PrimaryAlertID, alert.AlertID)
+		if alert.Incident == nil {
+			continue
+		}
+		annotated++
+		if alert.Incident.MemberCount != 2 {
+			t.Fatalf("expected member_count=2 on %s, got %d", alert.AlertID, alert.Incident.MemberCount)
+		}
+		if alert.AlertID == summaries[0].PrimaryAlertID {
+			if alert.Incident.Role != "primary" {
+				t.Fatalf("expected primary role on %s, got %s", alert.AlertID, alert.Incident.Role)
 			}
+			continue
+		}
+		if alert.Incident.Role != "member" {
+			t.Fatalf("expected member role on %s, got %s", alert.AlertID, alert.Incident.Role)
 		}
 	}
-	if annotated != 1 {
-		t.Fatalf("expected exactly one annotated alert, got %d", annotated)
+	if annotated != 2 {
+		t.Fatalf("expected both cluster members annotated, got %d", annotated)
 	}
 }

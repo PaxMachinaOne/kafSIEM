@@ -1,7 +1,17 @@
 import type { Alert, IncidentLink } from "@/types/alert";
 
-export function isIncidentAnchor(alert: Alert): boolean {
+export function isIncidentMember(alert: Alert): boolean {
   return (alert.incident?.member_count ?? 0) >= 2;
+}
+
+export function isIncidentAnchor(alert: Alert): boolean {
+  return isIncidentMember(alert);
+}
+
+export function isIncidentPrimary(alert: Alert): boolean {
+  const link = alert.incident;
+  if (!link) return false;
+  return link.role === "primary" || alert.alert_id === link.primary_alert_id;
 }
 
 export function resolveIncidentPeers(alert: Alert, alerts: Alert[]): Alert[] {
@@ -57,6 +67,9 @@ export function formatLinkReason(reason: string): string {
   if (reason.startsWith("anchor:sanctioned:")) {
     return `Sanctions listing (${reason.slice("anchor:sanctioned:".length)})`;
   }
+  if (reason.startsWith("shared_country:")) {
+    return `Shared geography (${reason.slice("shared_country:".length)})`;
+  }
   return reason.replaceAll("_", " ");
 }
 
@@ -66,6 +79,8 @@ export function incidentSummaryLine(link: IncidentLink): string {
     parts.push(link.shared_cves.join(", "));
   } else if (link.shared_entities?.length) {
     parts.push(link.shared_entities.join(", "));
+  } else if (link.shared_countries?.length) {
+    parts.push(link.shared_countries.join(", "));
   }
   return parts.join(" · ");
 }

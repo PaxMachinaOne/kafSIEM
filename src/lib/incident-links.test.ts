@@ -3,6 +3,7 @@ import {
   formatLinkReason,
   incidentSummaryLine,
   isIncidentAnchor,
+  isIncidentPrimary,
   mergeIncidentPeers,
   resolveIncidentPeers,
 } from "@/lib/incident-links";
@@ -62,6 +63,20 @@ describe("incident-links", () => {
   it("detects incident anchors", () => {
     expect(isIncidentAnchor(alert("a1", "Primary"))).toBe(true);
     expect(isIncidentAnchor({ ...alert("solo", "Solo"), incident: undefined })).toBe(false);
+  });
+
+  it("detects primary vs member roles", () => {
+    const primary = alert("a1", "Primary");
+    const member = {
+      ...alert("a2", "Member"),
+      incident: {
+        ...alert("a2", "Member").incident!,
+        role: "member" as const,
+        primary_alert_id: "a1",
+      },
+    };
+    expect(isIncidentPrimary(primary)).toBe(true);
+    expect(isIncidentPrimary(member)).toBe(false);
   });
 
   it("returns empty peers when related ids are absent from feed", () => {

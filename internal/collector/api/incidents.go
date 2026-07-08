@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/scalytics/kafSIEM/internal/collector/normalize"
 )
 
 func (s *Server) handleOSINTIncidentsList(w http.ResponseWriter, r *http.Request) {
@@ -42,5 +44,24 @@ func (s *Server) handleOSINTIncident(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "incident not found"})
 		return
 	}
-	writeJSON(w, http.StatusOK, detail)
+	geo, timeline, graph := normalize.BuildIncidentOverview(detail.IncidentSummary, detail.Alerts)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"incident_id":      detail.IncidentID,
+		"title":            detail.Title,
+		"category":         detail.Category,
+		"severity":         detail.Severity,
+		"member_count":     detail.MemberCount,
+		"primary_alert_id": detail.PrimaryAlertID,
+		"alert_ids":        detail.AlertIDs,
+		"link_reasons":     detail.LinkReasons,
+		"cves":             detail.CVEs,
+		"entities":         detail.Entities,
+		"countries":        detail.Countries,
+		"first_seen":       detail.FirstSeen,
+		"last_seen":        detail.LastSeen,
+		"alerts":           detail.Alerts,
+		"geo":              geo,
+		"timeline":         timeline,
+		"graph":            graph,
+	})
 }

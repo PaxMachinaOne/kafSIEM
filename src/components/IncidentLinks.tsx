@@ -2,7 +2,13 @@ import { useState } from "react";
 import { GitBranch, ChevronDown } from "lucide-react";
 import type { Alert } from "@/types/alert";
 import { useIncidentDetail } from "@/hooks/useIncidentDetail";
-import { formatLinkReason, incidentSummaryLine, mergeIncidentPeers } from "@/lib/incident-links";
+import { IncidentRelationGraph } from "@/components/IncidentRelationGraph";
+import {
+  formatLinkReason,
+  incidentSummaryLine,
+  isIncidentPrimary,
+  mergeIncidentPeers,
+} from "@/lib/incident-links";
 import { categoryLabels } from "@/lib/severity";
 
 interface Props {
@@ -22,6 +28,7 @@ export function IncidentLinks({ alert, alerts, onSelectAlert }: Props) {
 
   const peers = mergeIncidentPeers(alert, alerts, detail?.alerts);
   const reasons = (detail?.link_reasons?.length ? detail.link_reasons : link.link_reasons) ?? [];
+  const roleLabel = isIncidentPrimary(alert) ? "Primary cluster alert" : "Corroborating cluster member";
 
   return (
     <div className="rounded-lg border border-siem-border bg-white/5">
@@ -36,6 +43,7 @@ export function IncidentLinks({ alert, alerts, onSelectAlert }: Props) {
             Linked incident
           </div>
           <div className="mt-1 text-sm text-siem-text">{incidentSummaryLine(link)}</div>
+          <div className="mt-1 text-xxs text-siem-muted">{roleLabel}</div>
           <div className="mt-1 font-mono text-xxs text-siem-muted truncate">{link.incident_id}</div>
         </div>
         <ChevronDown size={16} className={`shrink-0 text-siem-muted transition-transform ${open ? "rotate-180" : ""}`} />
@@ -53,11 +61,15 @@ export function IncidentLinks({ alert, alerts, onSelectAlert }: Props) {
             </div>
           ) : null}
 
+          {detail ? (
+            <IncidentRelationGraph detail={detail} currentAlertId={alert.alert_id} onSelectAlert={onSelectAlert} />
+          ) : null}
+
           {isLoading ? (
             <p className="text-xxs text-siem-muted">Loading corroborating alerts...</p>
           ) : peers.length > 0 ? (
             <div className="space-y-2">
-              <div className="text-2xs uppercase tracking-wider text-siem-muted">Corroborating alerts</div>
+              <div className="text-2xs uppercase tracking-wider text-siem-muted">Active feed peers</div>
               {peers.map((peer) => (
                 <button
                   key={peer.alert_id}
@@ -72,13 +84,13 @@ export function IncidentLinks({ alert, alerts, onSelectAlert }: Props) {
                 </button>
               ))}
             </div>
-          ) : (
+          ) : !detail ? (
             <p className="text-xxs text-siem-muted">
               {isAvailable === false
                 ? "Related alerts are indexed on this incident but the incidents API is unavailable."
                 : "Related alerts are indexed on this incident but not currently in the active feed."}
             </p>
-          )}
+          ) : null}
         </div>
       ) : null}
     </div>
