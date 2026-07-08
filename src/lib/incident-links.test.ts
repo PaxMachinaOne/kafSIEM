@@ -7,6 +7,7 @@ import {
   isIncidentAnchor,
   isIncidentPrimary,
   mergeIncidentPeers,
+  reportLag,
   resolveIncidentPeers,
 } from "@/lib/incident-links";
 import type { Alert } from "@/types/alert";
@@ -115,6 +116,15 @@ describe("incident-links", () => {
   it("returns null when no countries are known", () => {
     expect(geographyLabel(undefined)).toBeNull();
     expect(geographyLabel([])).toBeNull();
+  });
+
+  it("formats report lag against the first report", () => {
+    const base = "2026-04-10T10:00:00Z";
+    expect(reportLag(base, "2026-04-10T10:45:00Z")).toBe("+45m");
+    expect(reportLag(base, "2026-04-10T14:12:00Z")).toBe("+4.2h");
+    expect(reportLag(base, "2026-04-13T10:00:00Z")).toBe("+3d");
+    expect(reportLag(base, base)).toBeNull();
+    expect(reportLag(base, "not-a-date")).toBeNull();
   });
 
   it("identifies geography link reasons", () => {

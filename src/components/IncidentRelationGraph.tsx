@@ -1,5 +1,5 @@
 import type { IncidentDetail } from "@/types/incident";
-import { formatLinkReason } from "@/lib/incident-links";
+import { formatLinkReason, reportLag } from "@/lib/incident-links";
 import { categoryLabels } from "@/lib/severity";
 
 interface Props {
@@ -100,7 +100,9 @@ export function IncidentRelationGraph({ detail, currentAlertId, onSelectAlert }:
         <div>
           <div className="text-2xs uppercase tracking-wider text-siem-muted">Timeline</div>
           <div className="mt-2 space-y-2">
-            {timeline.map((entry) => (
+            {timeline.map((entry, index) => {
+              const lag = index === 0 ? null : reportLag(timeline[0].first_seen, entry.first_seen);
+              return (
               <button
                 key={entry.alert_id}
                 type="button"
@@ -109,14 +111,22 @@ export function IncidentRelationGraph({ detail, currentAlertId, onSelectAlert }:
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-mono text-xxs text-siem-muted">{entry.first_seen.replace("T", " ").replace("Z", " UTC")}</span>
-                  <span className="text-xxs uppercase tracking-wider text-siem-muted">{entry.role || "member"}</span>
+                  <span className="flex items-center gap-1.5">
+                    {index === 0 ? (
+                      <span className="rounded-full border border-siem-accent/40 bg-siem-accent/10 px-1.5 text-xxs text-siem-text">first report</span>
+                    ) : lag ? (
+                      <span className="font-mono text-xxs text-siem-muted">{lag}</span>
+                    ) : null}
+                    <span className="text-xxs uppercase tracking-wider text-siem-muted">{entry.role || "member"}</span>
+                  </span>
                 </div>
                 <div className="mt-1 text-xs font-medium text-siem-text line-clamp-2">{entry.title}</div>
                 <div className="mt-1 text-xxs text-siem-muted">
                   {entry.authority_name} · {categoryLabels[entry.category as keyof typeof categoryLabels] ?? entry.category}
                 </div>
               </button>
-            ))}
+              );
+            })}
           </div>
         </div>
       ) : null}

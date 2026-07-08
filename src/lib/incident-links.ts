@@ -99,6 +99,21 @@ export function isGeographyReason(reason: string): boolean {
   return reason.startsWith("shared_country:");
 }
 
+// reportLag renders how far behind the first report an entry came in:
+// null for the first report itself (or unparsable input), "+45m" / "+4.2h" / "+3d" after.
+export function reportLag(baselineIso: string, entryIso: string): string | null {
+  const baseline = Date.parse(baselineIso);
+  const entry = Date.parse(entryIso);
+  if (Number.isNaN(baseline) || Number.isNaN(entry)) return null;
+  const deltaMs = entry - baseline;
+  if (deltaMs <= 0) return null;
+  const minutes = deltaMs / 60_000;
+  if (minutes < 60) return `+${Math.round(minutes)}m`;
+  const hours = minutes / 60;
+  if (hours < 48) return `+${Math.round(hours * 10) / 10}h`;
+  return `+${Math.round(hours / 24)}d`;
+}
+
 export function incidentSummaryLine(link: IncidentLink): string {
   const parts: string[] = [`${link.member_count} linked alerts`];
   if (link.shared_cves?.length) {
