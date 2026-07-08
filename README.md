@@ -43,8 +43,9 @@ npm run demo:ontology:scada    # SCADA / OT ontology desk
 npm run demo:fusion            # operations plus OSINT correlation
 ```
 
-Opens the Operations or Fusion desk with typed mock API data. OSINT mode is
-unchanged.
+Opens the Operations or Fusion desk with typed mock API data. For OSINT attack
+relations without Docker, use `npm run dev` and open `/?demo=fusion` — includes
+cyber and terror incident clusters in the Relations panel.
 
 ## What you get
 
@@ -96,7 +97,7 @@ read-only analyst resources and enqueues replay requests. See
 
 | Product name | `UI_MODE` | Purpose |
 |--------------|-----------|---------|
-| OSINT | `OSINT` | Globe-first external intelligence and alert feeds |
+| OSINT | `OSINT` | Globe-first intelligence, alert feeds, attack-relation clusters |
 | Operations | `AGENTOPS` | Kafka agent flow tracking and ontology desk |
 | Fusion | `HYBRID` | Operations plus heuristic OSINT correlation |
 
@@ -185,9 +186,13 @@ OSINT-only local dev without Docker:
 
 ```bash
 npm install
-npm run fetch:alerts:watch
-npm run dev
+npm run fetch:alerts:watch   # live collector JSON (optional)
+npm run dev                  # or ?demo=fusion for bundled relation demo
 ```
+
+Browse corroborated clusters: header **Relations** → filter by attack type
+(cyber, terror, maritime, conflict). See
+[docs/userguide.md](docs/userguide.md#attack-relations-clusters).
 
 ## License
 

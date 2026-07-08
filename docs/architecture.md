@@ -171,21 +171,152 @@ operations intelligence, KafClaw envelope, replay consumer group.
 Public positioning: complementary operations and fusion layer. Not a vendor
 platform clone. Stable OpenAPI for external client generation.
 
-## OSINT incident links
+## OSINT attack relations
 
-Active OSINT alerts can carry an `incident` block and a parallel
-`incidents.json` index. The collector builds clusters from:
+OSINT mode and the public demo surface **corroborated attack clusters**: when
+multiple independent sources describe the same cyber incident, terror plot,
+maritime event, or conflict development, the collector links them into an
+explainable relation bundle. This is separate from the Operations entity graph
+(`internal/graph/`) but uses the same analyst pattern: typed objects, explicit
+edges, and provenance-friendly `link_reasons`.
 
-- cross-source fingerprint similarity (existing Jaccard dedup signals)
-- shared CVE identifiers in titles
-- shared actor entities for terrorism, conflict, cyber, and maritime categories
+### Pipeline
 
-Primary alerts in a cluster expose `related_alert_ids` and `link_reasons`.
-The OSINT alert detail drawer renders this as a collapsible linked-incident
-panel without adding a new top-level UI mode.
+```text
+fetch + normalize
+      |
+      v
+deduplicate (within-source only)
+      |
+      v
+ApplyIncidentLinks          # union-find clustering + anchor corroboration
+      |
+      v
+FinalizeActiveAlerts        # cross-source dedup AFTER clustering
+      |
+      v
+alerts.json + incidents.json + osint_incidents (SQLite)
+      |
+      v
+GET /api/osint/incidents[/{id}]  --->  OSINT Relations UI + Alert Detail drawer
+```
 
-Fusion mode (`HYBRID`) links Operations flows to incident clusters through
-`src/agentops/lib/hybrid.ts`. Flow message indicators (CVE, sector, geography,
-actor) are matched against both alert text and `incident.shared_cves` /
-`incident.shared_entities`. Incident-backed matches surface in the existing
-Fusion Context block with corroboration counts, without a new graph panel.
+`FinalizeActiveAlerts` runs incident linking **before** cross-source dedup so
+Jaccard-similar corroborators are not removed before they can form a cluster.
+Incident cluster members that share an `incident_id` are retained in the active
+feed for analyst visibility.
+
+Implementation: `internal/collector/normalize/incidents.go`,
+`relation_anchors.go`, `attack_types.go`, `incident_overview.go`.
+
+### Cluster link dimensions
+
+| Reason prefix | Meaning | Typical attack lens |
+|---------------|---------|---------------------|
+| `cross_source:jaccard:` | Cross-source narrative similarity (24h) | general, conflict, terror |
+| `shared_cve:` | Same CVE in titles (14d) | cyber |
+| `shared_entity:` | Same actor within category (7d) | terror, conflict, maritime |
+| `cross_category_entity:` | Known actor across categories (7d) | terror, hybrid |
+| `shared_country:` | Same `event_country_code` + weak overlap (7d) | conflict, terror, maritime |
+| `anchor:kev:` / `anchor:epss:` | CISA KEV / FIRST EPSS corroboration | cyber |
+| `anchor:sanctioned:` / `anchor:known_actor:` | Sanctions / actor registry | terror |
+| `anchor:travel_warning:` / `anchor:conflict_data:` | Travel advisory / ACLED-UCDP geo | conflict, terror |
+
+Clustering is deterministic (union-find, hashed `inc-id`). No LLM clustering.
+
+### Attack type classification
+
+Each incident summary carries `attack_type` for the public Relations lens:
+
+| `attack_type` | Detection signal |
+|---------------|------------------|
+| `cyber` | Shared CVEs or KEV/EPSS anchors |
+| `terror` | Terror category, shared/sanctioned actors, known-actor anchors |
+| `maritime` | `maritime_security` category cluster |
+| `conflict` | `conflict_monitoring` / humanitarian security cluster |
+| `travel` | `travel_warning` cluster |
+| `hybrid` | Cyber signals plus terror or conflict signals |
+| `general` | Multi-source corroboration without a dominant lens |
+
+`ClassifyAttackType()` in `attack_types.go` derives the lens from member
+alerts, categories, and `link_reasons`.
+
+### Alert and index schema
+
+Every cluster member alert can carry an `incident` block:
+
+```json
+{
+  "incident_id": "inc-…",
+  "member_count": 3,
+  "primary_alert_id": "…",
+  "role": "primary",
+  "related_alert_ids": ["…"],
+  "link_reasons": ["shared_cve:CVE-2026-1234"],
+  "shared_cves": ["CVE-2026-1234"],
+  "shared_entities": ["Al-Shabaab"],
+  "shared_countries": ["SO"]
+}
+```
+
+Parallel index: `incidents.json` beside `alerts.json`. Persisted table:
+`osint_incidents` in the collector SQLite registry (`internal/sourcedb/`).
+
+### Relation graph (analyst overview)
+
+Detail API responses include a lightweight relation graph built at read time:
+
+| Part | Content |
+|------|---------|
+| `timeline` | Member alerts ordered by `first_seen` |
+| `geo` | Aggregated `country_codes` / country names |
+| `graph.nodes` | Alerts plus typed nodes: `actor`, `cve`, `country` |
+| `graph.edges` | `attributed_to`, `exploits`, `located_in`, corroboration to primary |
+
+Endpoints (proxied via `kafsiem-api` legacy proxy):
+
+- `GET /api/osint/incidents?limit=50`
+- `GET /api/osint/incidents/{id}`
+
+### OSINT UI surfaces
+
+| Surface | Path | Purpose |
+|---------|------|---------|
+| **Relations** | Header toggle `Overview` / `Relations` | Browse clusters by attack type |
+| **Alert queue** | `src/components/AlertFeed.tsx` | `N linked` / `corroborates` badges |
+| **Alert detail** | `IncidentLinks` + `IncidentRelationGraph` | Reasons, timeline, typed graph |
+| **Intel overview** | `FeedDirectory` | Linked-incident count and filter chip |
+| **Globe** | `GlobeView` | Tooltip on incident anchors |
+
+Frontend hooks: `useIncidents`, `useIncidentDetail`. Demo fixtures:
+`public/demo/alerts.json`, `public/demo/incidents.json` (`?demo=fusion`).
+
+### Open-data relation anchors
+
+Structured feeds corroborate clusters without forming edges alone:
+
+- CISA KEV, FIRST EPSS, NVD JSON
+- UN/OFAC sanctions XML, OpenSanctions NDJSON
+- URLhaus, Feodo (malware — parser ready; `shared_malware` link dimension planned)
+- IMB piracy HTML, ACLED/UCDP conflict data
+- Terror actor aliases: `registry/terror_actor_aliases.json`
+
+Anchors add `anchor:*` reasons via `ApplyAnchorCorroboration()` in
+`relation_anchors.go`.
+
+### Fusion mode integration
+
+Fusion (`HYBRID`) links Operations Kafka flows to incident clusters through
+`src/agentops/lib/hybrid.ts`. Flow indicators (CVE, sector, geography, actor)
+match alert text and `incident.shared_cves` / `incident.shared_entities`.
+Incident-backed matches rank higher in the Fusion Context block with
+corroboration counts.
+
+### Planned relation dimensions
+
+| Dimension | Status |
+|-----------|--------|
+| Malware IOC overlap (URLhaus/Feodo) | parsers in place; link reason pending |
+| Sector targeting keywords (ICS/energy) | planned |
+| Globe edge overlay between incident members | planned |
+| STIX export from incident graph | planned |

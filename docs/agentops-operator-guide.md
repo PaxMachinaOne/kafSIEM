@@ -259,3 +259,14 @@ exists on:
 - product
 - CVE
 - time-window proximity
+
+When the OSINT collector has built **incident clusters**, Fusion also matches
+Kafka flow indicators against cluster metadata:
+
+- `incident-cve:{CVE}` — flow vulnerability fields match `incident.shared_cves`
+- `incident-entity:{actor}` — flow actor fields match `incident.shared_entities`
+- `incident:{incident_id}` — cluster-level corroboration reason
+
+Incident-backed matches are ranked above single-alert matches in the Fusion
+Context block. Implementation: `src/agentops/lib/hybrid.ts`. Cluster build
+pipeline: [architecture.md#osint-attack-relations](architecture.md#osint-attack-relations).

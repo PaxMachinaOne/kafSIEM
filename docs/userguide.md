@@ -129,15 +129,93 @@ Alerts are plotted at event coordinates/country when resolvable. If event locati
 
 ---
 
+## Attack relations (clusters)
+
+kafSIEM links corroborating alerts from **different sources** into incident
+clusters. This is the primary analyst feature for the public OSINT demo: detect
+cyber campaigns, terror plots, maritime incidents, and conflict developments
+from open feeds without manual copy-paste.
+
+### How clusters form
+
+The collector unions alerts when any of these hold (see
+[architecture.md](architecture.md) for full detail):
+
+- **Cross-source narrative match** — similar title fingerprints from different
+  feeds within 24 hours
+- **Shared CVE** — same CVE identifier across advisories (14-day window)
+- **Shared actor** — same known group within a category (7-day window)
+- **Cross-domain actor** — same registry actor across terror and conflict
+  categories (e.g. tip line + ACLED event)
+- **Shared geography** — same `event_country_code` with supporting text overlap
+- **Open-data anchors** — KEV, EPSS, sanctions, travel warnings, conflict datasets
+
+Each link produces an explainable `link_reason` string (no LLM clustering).
+
+### Attack type lenses
+
+Clusters are tagged with `attack_type` for filtering in the **Relations** panel:
+
+| Lens | What it catches |
+|------|-----------------|
+| Cyber | CVE overlap, KEV/EPSS corroboration |
+| Terror / extremist | Actor registry, sanctions, terror tips |
+| Maritime | Piracy and maritime security feeds |
+| Conflict | ACLED/UCDP-backed developments |
+| Hybrid | Cyber plus terror or conflict signals in one cluster |
+
+### Using the Relations UI
+
+1. Open the OSINT console.
+2. Click **Relations** in the header (next to Overview).
+3. Filter by attack type or browse all clusters.
+4. Click a cluster card to jump to the primary alert on the map and queue.
+5. Open any linked alert and expand **Linked incident** for:
+   - link reason chips
+   - geography summary
+   - relation graph (alerts, actors, CVEs, countries)
+   - chronological timeline
+   - corroborating peers (from feed + incidents API)
+
+**Queue badges:** primary alerts show `N linked`; corroborating members show
+`corroborates`. Use the linked-incident chip in the intel overview to filter the
+queue to cluster members only.
+
+### Incidents API
+
+When the collector stack is running:
+
+```bash
+curl -s http://localhost:8080/api/osint/incidents | jq .
+curl -s http://localhost:8080/api/osint/incidents/inc-demo-cve-12345 | jq .
+```
+
+Detail responses include `timeline`, `geo`, and `graph` for analyst overview.
+
+### Local demo without Docker
+
+```bash
+npm install
+npm run dev
+# open http://localhost:5173/?demo=fusion
+```
+
+Demo fixtures include a **cyber** CVE cluster (3 sources) and a **terror**
+Al-Shabaab cross-domain cluster (conflict + terror feeds). Click **Relations**
+to browse both.
+
+---
+
 ## Collector Cycle
 
 The collector runs on a configurable interval (default: 15 minutes). Each run:
 
-1. Fetches all active sources from the registry (~266 sources)
+1. Fetches all active sources from the registry (~460+ curated sources)
 2. Parses and normalizes alerts with severity and category classification
-3. Deduplicates across sources
+3. Deduplicates within-source variants
 4. Reconciles with previous state (tracks new, active, and removed alerts)
-5. Outputs JSON snapshots consumed by the frontend
+5. Builds incident clusters and writes `alerts.json` + `incidents.json`
+6. Persists incidents to SQLite (`osint_incidents`) when using the sqlite registry
 
 Removed alerts (e.g., a resolved Interpol notice) are retained in state for 14 days before being purged.
 
