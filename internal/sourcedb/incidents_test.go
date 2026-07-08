@@ -27,6 +27,8 @@ func TestSaveAndLoadOSINTIncidents(t *testing.T) {
 			AlertIDs:       []string{"a1", "a2"},
 			LinkReasons:    []string{"shared_cve:CVE-2026-1234"},
 			CVEs:           []string{"CVE-2026-1234"},
+			Malware:        []string{"evil-c2.example"},
+			Sectors:        []string{"energy", "ics"},
 			FirstSeen:      "2026-04-10T10:00:00Z",
 			LastSeen:       "2026-04-10T12:00:00Z",
 		},
@@ -42,6 +44,9 @@ func TestSaveAndLoadOSINTIncidents(t *testing.T) {
 	if len(list) != 1 || list[0].IncidentID != "inc-abc" {
 		t.Fatalf("unexpected list: %#v", list)
 	}
+	if len(list[0].Malware) != 1 || list[0].Malware[0] != "evil-c2.example" || len(list[0].Sectors) != 2 {
+		t.Fatalf("expected malware and sectors to round-trip in list: %#v", list[0])
+	}
 
 	detail, ok, err := db.GetOSINTIncident(context.Background(), "inc-abc")
 	if err != nil || !ok {
@@ -49,6 +54,66 @@ func TestSaveAndLoadOSINTIncidents(t *testing.T) {
 	}
 	if detail.MemberCount != 2 || len(detail.CVEs) != 1 {
 		t.Fatalf("unexpected detail: %#v", detail)
+	}
+	if len(detail.Malware) != 1 || detail.Malware[0] != "evil-c2.example" || len(detail.Sectors) != 2 {
+		t.Fatalf("expected malware and sectors to round-trip in detail: %#v", detail)
+	}
+}
+
+func TestSaveOSINTIncidentsMigratesMalwareAndSectorColumns(t *testing.T) {
+	dir := t.TempDir()
+	db, err := Open(filepath.Join(dir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	if _, err := db.sql.ExecContext(context.Background(), `
+CREATE TABLE osint_incidents (
+  incident_id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  category TEXT NOT NULL,
+  severity TEXT NOT NULL,
+  member_count INTEGER NOT NULL,
+  primary_alert_id TEXT NOT NULL,
+  alert_ids_json TEXT NOT NULL DEFAULT '[]',
+  link_reasons_json TEXT NOT NULL DEFAULT '[]',
+  cves_json TEXT NOT NULL DEFAULT '[]',
+  entities_json TEXT NOT NULL DEFAULT '[]',
+  countries_json TEXT NOT NULL DEFAULT '[]',
+  attack_type TEXT NOT NULL DEFAULT 'general',
+  first_seen TEXT NOT NULL,
+  last_seen TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)`); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := db.SaveOSINTIncidents(context.Background(), []model.IncidentSummary{
+		{
+			IncidentID:     "inc-migrate",
+			Title:          "Energy malware",
+			Category:       "cyber_advisory",
+			Severity:       "critical",
+			MemberCount:    2,
+			PrimaryAlertID: "a1",
+			AlertIDs:       []string{"a1", "a2"},
+			LinkReasons:    []string{"shared_malware:evil-c2.example", "targets_sector:energy"},
+			Malware:        []string{"evil-c2.example"},
+			Sectors:        []string{"energy"},
+			FirstSeen:      "2026-04-10T10:00:00Z",
+			LastSeen:       "2026-04-10T12:00:00Z",
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	list, err := db.ListOSINTIncidents(context.Background(), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 || len(list[0].Malware) != 1 || len(list[0].Sectors) != 1 {
+		t.Fatalf("expected migrated malware and sector fields, got %#v", list)
 	}
 }
 
