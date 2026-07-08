@@ -54,29 +54,26 @@ export const MIDDLE_EAST_CODES = new Set([
   "OM", "PS", "QA", "SA", "SY", "TR", "YE",
 ]);
 
+// Region matching prefers where the event happened (event country, geocoded
+// coordinates) over where the publisher sits, so a UK feed reporting on an
+// Australian event lands in Asia-Pacific, not Europe.
 export function alertMatchesRegionFilter(alert: Alert, regionFilter: string): boolean {
   if (regionFilter === "all") return true;
+  const countryCode = alert.event_country_code || alert.source.country_code;
   if (regionFilter.startsWith("country:")) {
-    return alert.source.country_code === regionFilter.slice(8);
+    return countryCode === regionFilter.slice(8);
   }
+  const geoRegion =
+    alert.lat === 0 && alert.lng === 0 ? null : latLngToRegion(alert.lat, alert.lng);
+  const region = geoRegion ?? alert.source.region;
   if (regionFilter === "Caribbean") {
-    return (
-      alert.source.region === "Caribbean" ||
-      inBounds(alert.lat, alert.lng, CARIBBEAN_INTERACTION_BOUNDS)
-    );
+    return region === "Caribbean" || inBounds(alert.lat, alert.lng, CARIBBEAN_INTERACTION_BOUNDS);
   }
   if (regionFilter === "Middle East") {
-    return (
-      alert.source.region === "Middle East" ||
-      MIDDLE_EAST_CODES.has(alert.source.country_code)
-    );
+    return region === "Middle East" || MIDDLE_EAST_CODES.has(countryCode);
   }
   if (regionFilter === "Asia-Pacific") {
-    return (
-      alert.source.region === "Asia" ||
-      alert.source.region === "Asia-Pacific" ||
-      alert.source.region === "Oceania"
-    );
+    return region === "Asia" || region === "Asia-Pacific" || region === "Oceania";
   }
-  return alert.source.region === regionFilter;
+  return region === regionFilter;
 }

@@ -135,4 +135,16 @@ describe("alertMatchesRegionFilter", () => {
     expect(alertMatchesRegionFilter(alert, "Europe")).toBe(true);
     expect(alertMatchesRegionFilter(alert, "Africa")).toBe(false);
   });
+
+  it("prefers event country over publisher country for country filters", () => {
+    const alert = makeAlert({ event_country_code: "AU", source: { country_code: "GB" } });
+    expect(alertMatchesRegionFilter(alert, "country:AU")).toBe(true);
+    expect(alertMatchesRegionFilter(alert, "country:GB")).toBe(false);
+  });
+
+  it("prefers geocoded event location over publisher region", () => {
+    const alert = makeAlert({ lat: -33.87, lng: 151.21, source: { region: "Europe" } });
+    expect(alertMatchesRegionFilter(alert, "Asia-Pacific")).toBe(true);
+    expect(alertMatchesRegionFilter(alert, "Europe")).toBe(false);
+  });
 });
