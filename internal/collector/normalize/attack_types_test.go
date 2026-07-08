@@ -17,6 +17,20 @@ func TestClassifyAttackTypeCyber(t *testing.T) {
 	}
 }
 
+func TestClassifyAttackTypeCyberCategoryCluster(t *testing.T) {
+	summary := model.IncidentSummary{
+		LinkReasons: []string{"cross_source:jaccard:0.83"},
+		Category:    "cyber_advisory",
+	}
+	alerts := []model.Alert{
+		{Category: "cyber_advisory"},
+		{Category: "cyber_advisory"},
+	}
+	if got := ClassifyAttackType(summary, alerts); got != "cyber" {
+		t.Fatalf("expected cyber, got %s", got)
+	}
+}
+
 func TestClassifyAttackTypeTerrorCrossCategory(t *testing.T) {
 	summary := model.IncidentSummary{
 		Entities:    []string{"Al-Shabaab"},

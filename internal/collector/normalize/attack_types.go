@@ -16,7 +16,7 @@ func ClassifyAttackType(summary model.IncidentSummary, memberAlerts []model.Aler
 		return inferAttackTypeFromSummary(summary)
 	}
 
-	cyber := hasCyberSignals(summary)
+	cyber := hasCyberSignals(summary) || hasCategory(memberAlerts, "cyber_advisory")
 	terror := hasTerrorSignals(summary, memberAlerts)
 	maritime := hasCategory(memberAlerts, "maritime_security")
 	conflict := hasCategory(memberAlerts, "conflict_monitoring", "humanitarian_security")
@@ -48,6 +48,8 @@ func inferAttackTypeFromSummary(summary model.IncidentSummary) string {
 		return "terror"
 	}
 	switch summary.Category {
+	case "cyber_advisory":
+		return "cyber"
 	case "maritime_security":
 		return "maritime"
 	case "conflict_monitoring", "humanitarian_security":
