@@ -221,6 +221,10 @@ Implementation: `internal/collector/normalize/incidents.go`,
 | `anchor:kev:` / `anchor:epss:` | CISA KEV / FIRST EPSS corroboration | cyber |
 | `anchor:sanctioned:` / `anchor:known_actor:` | Sanctions / actor registry | terror |
 | `anchor:travel_warning:` / `anchor:conflict_data:` | Travel advisory / ACLED-UCDP geo | conflict, terror |
+| `shared_malware:` | URLhaus/Feodo IOC overlap (domain, family, hash, IP) | cyber |
+| `targets_sector:` | ICS/energy sector keyword overlap | cyber |
+| `sanctioned_entity:` | OpenSanctions ↔ terror tip actor match | terror |
+| `anchor:malware:` | URLhaus/Feodo feed corroboration | cyber |
 
 Clustering is deterministic (union-find, hashed `inc-id`). No LLM clustering.
 
@@ -297,7 +301,7 @@ Structured feeds corroborate clusters without forming edges alone:
 
 - CISA KEV, FIRST EPSS, NVD JSON
 - UN/OFAC sanctions XML, OpenSanctions NDJSON
-- URLhaus, Feodo (malware — parser ready; `shared_malware` link dimension planned)
+- URLhaus, Feodo (malware IOC anchors and `shared_malware` linking)
 - IMB piracy HTML, ACLED/UCDP conflict data
 - Terror actor aliases: `registry/terror_actor_aliases.json`
 
@@ -316,7 +320,8 @@ corroboration counts.
 
 | Dimension | Status |
 |-----------|--------|
-| Malware IOC overlap (URLhaus/Feodo) | parsers in place; link reason pending |
-| Sector targeting keywords (ICS/energy) | planned |
+| Malware IOC overlap (URLhaus/Feodo) | implemented (`shared_malware`, `anchor:malware`) |
+| Sector targeting keywords (ICS/energy) | implemented (`targets_sector`) |
+| Sanctioned entity auto-link | implemented (`sanctioned_entity`) |
 | Globe edge overlay between incident members | planned |
 | STIX export from incident graph | planned |

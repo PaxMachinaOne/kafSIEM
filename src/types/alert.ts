@@ -85,6 +85,8 @@ export interface IncidentLink {
   link_reasons?: string[];
   shared_cves?: string[];
   shared_entities?: string[];
+  shared_malware?: string[];
+  shared_sectors?: string[];
   shared_countries?: string[];
 }
 

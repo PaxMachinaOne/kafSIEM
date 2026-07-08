@@ -56,6 +56,8 @@ func (s *Server) handleOSINTIncident(w http.ResponseWriter, r *http.Request) {
 		"link_reasons":     detail.LinkReasons,
 		"cves":             detail.CVEs,
 		"entities":         detail.Entities,
+		"malware":          detail.Malware,
+		"sectors":          detail.Sectors,
 		"countries":        detail.Countries,
 		"attack_type":      detail.AttackType,
 		"first_seen":       detail.FirstSeen,

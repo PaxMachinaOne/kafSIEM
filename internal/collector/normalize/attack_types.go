@@ -62,13 +62,16 @@ func inferAttackTypeFromSummary(summary model.IncidentSummary) string {
 }
 
 func hasCyberSignals(summary model.IncidentSummary) bool {
-	if len(summary.CVEs) > 0 {
+	if len(summary.CVEs) > 0 || len(summary.Malware) > 0 || len(summary.Sectors) > 0 {
 		return true
 	}
 	return hasReasonPrefix(summary.LinkReasons,
 		"shared_cve:",
+		"shared_malware:",
+		"targets_sector:",
 		"anchor:kev:",
 		"anchor:epss:",
+		"anchor:malware:",
 	)
 }
 
@@ -78,6 +81,7 @@ func hasTerrorSignals(summary model.IncidentSummary, memberAlerts []model.Alert)
 	}
 	return hasReasonPrefix(summary.LinkReasons,
 		"shared_entity:",
+		"sanctioned_entity:",
 		"anchor:sanctioned:",
 		"anchor:known_actor:",
 	)

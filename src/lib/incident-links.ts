@@ -73,6 +73,18 @@ export function formatLinkReason(reason: string): string {
   if (reason.startsWith("shared_country:")) {
     return `Shared geography (${reason.slice("shared_country:".length)})`;
   }
+  if (reason.startsWith("shared_malware:")) {
+    return `Shared malware IOC (${reason.slice("shared_malware:".length)})`;
+  }
+  if (reason.startsWith("targets_sector:")) {
+    return `Targets ${reason.slice("targets_sector:".length)} sector`;
+  }
+  if (reason.startsWith("sanctioned_entity:")) {
+    return `Sanctions-linked actor (${reason.slice("sanctioned_entity:".length)})`;
+  }
+  if (reason.startsWith("anchor:malware:")) {
+    return `Threat-intel IOC confirmed (${reason.slice("anchor:malware:".length)})`;
+  }
   return reason.replaceAll("_", " ");
 }
 
@@ -80,8 +92,12 @@ export function incidentSummaryLine(link: IncidentLink): string {
   const parts: string[] = [`${link.member_count} linked alerts`];
   if (link.shared_cves?.length) {
     parts.push(link.shared_cves.join(", "));
+  } else if (link.shared_malware?.length) {
+    parts.push(link.shared_malware.join(", "));
   } else if (link.shared_entities?.length) {
     parts.push(link.shared_entities.join(", "));
+  } else if (link.shared_sectors?.length) {
+    parts.push(link.shared_sectors.join(", "));
   } else if (link.shared_countries?.length) {
     parts.push(link.shared_countries.join(", "));
   }

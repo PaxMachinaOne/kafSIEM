@@ -11,6 +11,8 @@ export interface IncidentSummary {
   link_reasons?: string[];
   cves?: string[];
   entities?: string[];
+  malware?: string[];
+  sectors?: string[];
   countries?: string[];
   attack_type?: string;
   first_seen: string;

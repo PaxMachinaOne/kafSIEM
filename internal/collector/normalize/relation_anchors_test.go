@@ -83,6 +83,7 @@ func TestApplyAnchorCorroborationAddsExplainableReasons(t *testing.T) {
 		memberAlerts,
 		[]string{"CVE-2026-9999", "CVE-2026-8888"},
 		[]string{"Islamic State"},
+		nil,
 		anchors,
 	)
 	for _, expected := range []string{

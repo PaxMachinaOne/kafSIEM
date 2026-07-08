@@ -140,6 +140,38 @@ func BuildIncidentOverview(summary model.IncidentSummary, alerts []model.Alert) 
 		}
 	}
 
+	for _, ioc := range summary.Malware {
+		nodeID := "malware:" + strings.TrimSpace(ioc)
+		nodes = append(nodes, model.IncidentGraphNode{
+			ID:    nodeID,
+			Kind:  "malware",
+			Label: ioc,
+		})
+		for _, entry := range timeline {
+			edges = append(edges, model.IncidentGraphEdge{
+				From:   entry.AlertID,
+				To:     nodeID,
+				Reason: "shared_malware:" + ioc,
+			})
+		}
+	}
+
+	for _, sector := range summary.Sectors {
+		nodeID := "sector:" + strings.TrimSpace(sector)
+		nodes = append(nodes, model.IncidentGraphNode{
+			ID:    nodeID,
+			Kind:  "sector",
+			Label: sector,
+		})
+		for _, entry := range timeline {
+			edges = append(edges, model.IncidentGraphEdge{
+				From:   entry.AlertID,
+				To:     nodeID,
+				Reason: "targets_sector:" + sector,
+			})
+		}
+	}
+
 	for _, code := range geo.CountryCodes {
 		nodeID := "country:" + code
 		label := code

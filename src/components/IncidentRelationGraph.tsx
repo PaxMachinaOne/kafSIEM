@@ -46,11 +46,15 @@ export function IncidentRelationGraph({ detail, currentAlertId, onSelectAlert }:
                   ? "actor"
                   : node.kind === "cve"
                     ? "vulnerability"
-                    : node.kind === "country"
-                      ? "geography"
-                      : isPrimary
-                        ? "primary"
-                        : "member";
+                    : node.kind === "malware"
+                      ? "malware ioc"
+                      : node.kind === "sector"
+                        ? "sector"
+                        : node.kind === "country"
+                          ? "geography"
+                          : isPrimary
+                            ? "primary"
+                            : "member";
               const content = (
                 <>
                   <div className="min-w-0">

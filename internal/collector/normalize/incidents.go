@@ -25,12 +25,14 @@ const (
 )
 
 type incidentFingerprints struct {
-	alert   model.Alert
-	tokens  []string
-	ts      time.Time
-	cves    []string
-	actors  []string
-	country string
+	alert       model.Alert
+	tokens      []string
+	ts          time.Time
+	cves        []string
+	actors      []string
+	malwareIOCs []string
+	sectors     []string
+	country     string
 }
 
 type alertUnion struct {
@@ -87,12 +89,14 @@ func ApplyIncidentLinks(alerts []model.Alert) ([]model.Alert, []model.IncidentSu
 			continue
 		}
 		fps = append(fps, incidentFingerprints{
-			alert:   alert,
-			tokens:  tokens,
-			ts:      parseAlertTime(alert),
-			cves:    extractCVEs(alert.Title),
-			actors:  extractEntityNames(tokens),
-			country: eventCountryCode(alert),
+			alert:       alert,
+			tokens:      tokens,
+			ts:          parseAlertTime(alert),
+			cves:        extractCVEs(alert.Title),
+			actors:      extractEntityNames(tokens),
+			malwareIOCs: extractMalwareIOCs(alert),
+			sectors:     extractSectorTargets(alert),
+			country:     eventCountryCode(alert),
 		})
 	}
 
@@ -100,6 +104,8 @@ func ApplyIncidentLinks(alerts []model.Alert) ([]model.Alert, []model.IncidentSu
 	reasonsByAlert := make(map[string][]string)
 	cvesByAlert := make(map[string][]string)
 	actorsByAlert := make(map[string][]string)
+	malwareByAlert := make(map[string][]string)
+	sectorsByAlert := make(map[string][]string)
 
 	for _, fp := range fps {
 		for _, cve := range fp.cves {
@@ -107,6 +113,12 @@ func ApplyIncidentLinks(alerts []model.Alert) ([]model.Alert, []model.IncidentSu
 		}
 		for _, actor := range fp.actors {
 			actorsByAlert[fp.alert.AlertID] = appendUniqueString(actorsByAlert[fp.alert.AlertID], actor)
+		}
+		for _, ioc := range fp.malwareIOCs {
+			malwareByAlert[fp.alert.AlertID] = appendUniqueString(malwareByAlert[fp.alert.AlertID], ioc)
+		}
+		for _, sector := range fp.sectors {
+			sectorsByAlert[fp.alert.AlertID] = appendUniqueString(sectorsByAlert[fp.alert.AlertID], sector)
 		}
 	}
 
@@ -185,6 +197,64 @@ func ApplyIncidentLinks(alerts []model.Alert) ([]model.Alert, []model.IncidentSu
 		}
 	}
 
+	for i := range fps {
+		for j := i + 1; j < len(fps); j++ {
+			left := fps[i]
+			right := fps[j]
+			shared := intersectStrings(left.malwareIOCs, right.malwareIOCs)
+			if len(shared) == 0 || !shouldMalwareLink(left, right, shared) {
+				continue
+			}
+			union.union(left.alert.AlertID, right.alert.AlertID)
+			for _, ioc := range shared {
+				reason := formatSharedMalwareReason(ioc)
+				reasonsByAlert[left.alert.AlertID] = appendUniqueString(reasonsByAlert[left.alert.AlertID], reason)
+				reasonsByAlert[right.alert.AlertID] = appendUniqueString(reasonsByAlert[right.alert.AlertID], reason)
+			}
+		}
+	}
+
+	for i := range fps {
+		for j := i + 1; j < len(fps); j++ {
+			left := fps[i]
+			right := fps[j]
+			if !shouldSectorLink(left, right) {
+				continue
+			}
+			shared := intersectStrings(left.sectors, right.sectors)
+			if len(shared) == 0 {
+				continue
+			}
+			union.union(left.alert.AlertID, right.alert.AlertID)
+			for _, sector := range shared {
+				reason := formatTargetsSectorReason(sector)
+				reasonsByAlert[left.alert.AlertID] = appendUniqueString(reasonsByAlert[left.alert.AlertID], reason)
+				reasonsByAlert[right.alert.AlertID] = appendUniqueString(reasonsByAlert[right.alert.AlertID], reason)
+			}
+		}
+	}
+
+	for i := range fps {
+		for j := i + 1; j < len(fps); j++ {
+			left := fps[i]
+			right := fps[j]
+			if hoursApart(left.ts, right.ts) > entityIncidentWindowHours {
+				continue
+			}
+			if left.alert.SourceID == right.alert.SourceID {
+				continue
+			}
+			actor := matchSanctionedEntityPair(left.alert, right.alert)
+			if actor == "" {
+				continue
+			}
+			union.union(left.alert.AlertID, right.alert.AlertID)
+			reason := "sanctioned_entity:" + actor
+			reasonsByAlert[left.alert.AlertID] = appendUniqueString(reasonsByAlert[left.alert.AlertID], reason)
+			reasonsByAlert[right.alert.AlertID] = appendUniqueString(reasonsByAlert[right.alert.AlertID], reason)
+		}
+	}
+
 	groups := make(map[string][]string)
 	for _, fp := range fps {
 		root := union.find(fp.alert.AlertID)
@@ -205,18 +275,20 @@ func ApplyIncidentLinks(alerts []model.Alert) ([]model.Alert, []model.IncidentSu
 		reasons := uniqueSorted(collectReasons(memberIDs, reasonsByAlert))
 		sharedCVEs := uniqueSorted(collectCVEs(memberIDs, cvesByAlert))
 		sharedEntities := uniqueSorted(collectActors(memberIDs, actorsByAlert))
+		sharedMalware := uniqueSorted(collectMalwareIOCs(memberIDs, malwareByAlert))
+		sharedSectors := uniqueSorted(collectSectors(memberIDs, sectorsByAlert))
 		memberAlerts := make([]model.Alert, 0, len(memberIDs))
 		for _, id := range memberIDs {
 			memberAlerts = append(memberAlerts, alertIndex[id])
 		}
 		sharedCountries := collectCountries(memberIDs, alertIndex)
-		reasons = ApplyAnchorCorroboration(reasons, memberAlerts, sharedCVEs, sharedEntities, anchors)
+		reasons = ApplyAnchorCorroboration(reasons, memberAlerts, sharedCVEs, sharedEntities, sharedMalware, anchors)
 		for _, id := range memberIDs {
 			for i := range out {
 				if out[i].AlertID != id {
 					continue
 				}
-				out[i].Incident = buildIncidentLink(incidentID, primary.AlertID, id, memberIDs, reasons, sharedCVEs, sharedEntities, sharedCountries)
+				out[i].Incident = buildIncidentLink(incidentID, primary.AlertID, id, memberIDs, reasons, sharedCVEs, sharedEntities, sharedMalware, sharedSectors, sharedCountries)
 				break
 			}
 		}
@@ -231,6 +303,8 @@ func ApplyIncidentLinks(alerts []model.Alert) ([]model.Alert, []model.IncidentSu
 			LinkReasons:    reasons,
 			CVEs:           sharedCVEs,
 			Entities:       sharedEntities,
+			Malware:        sharedMalware,
+			Sectors:        sharedSectors,
 			Countries:      sharedCountries,
 			FirstSeen:      earliestSeen(memberIDs, alertIndex),
 			LastSeen:       latestSeen(memberIDs, alertIndex),
@@ -291,6 +365,8 @@ func buildIncidentLink(
 	reasons []string,
 	sharedCVEs []string,
 	sharedEntities []string,
+	sharedMalware []string,
+	sharedSectors []string,
 	sharedCountries []string,
 ) *model.IncidentLink {
 	related := make([]string, 0, len(memberIDs)-1)
@@ -312,8 +388,47 @@ func buildIncidentLink(
 		LinkReasons:     reasons,
 		SharedCVEs:      sharedCVEs,
 		SharedEntities:  sharedEntities,
+		SharedMalware:   sharedMalware,
+		SharedSectors:   sharedSectors,
 		SharedCountries: sharedCountries,
 	}
+}
+
+func matchSanctionedEntityPair(left, right model.Alert) string {
+	pairs := []struct {
+		sanctions model.Alert
+		terror    model.Alert
+	}{
+		{left, right},
+		{right, left},
+	}
+	for _, pair := range pairs {
+		if !isSanctionsSource(pair.sanctions) || pair.terror.Category != "terrorism_tip" {
+			continue
+		}
+		sanctionActor := MatchActorInText(strings.Join([]string{pair.sanctions.Title, pair.sanctions.Subcategory}, "\n"))
+		terrorActor := MatchActorInText(strings.Join([]string{pair.terror.Title, pair.terror.Subcategory}, "\n"))
+		if sanctionActor != "" && terrorActor != "" && sanctionActor == terrorActor {
+			return sanctionActor
+		}
+	}
+	return ""
+}
+
+func collectMalwareIOCs(memberIDs []string, malwareByAlert map[string][]string) []string {
+	out := make([]string, 0)
+	for _, id := range memberIDs {
+		out = append(out, malwareByAlert[id]...)
+	}
+	return uniqueSorted(out)
+}
+
+func collectSectors(memberIDs []string, sectorsByAlert map[string][]string) []string {
+	out := make([]string, 0)
+	for _, id := range memberIDs {
+		out = append(out, sectorsByAlert[id]...)
+	}
+	return uniqueSorted(out)
 }
 
 func eventCountryCode(alert model.Alert) string {

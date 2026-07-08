@@ -19,6 +19,7 @@ type RelationAnchors struct {
 	ConflictDataCountries  map[string]struct{}
 	KnownActors            map[string]struct{}
 	SanctionedActors       map[string]struct{}
+	MalwareIOCs            map[string]struct{}
 }
 
 func BuildRelationAnchors(alerts []model.Alert) RelationAnchors {
@@ -29,8 +30,14 @@ func BuildRelationAnchors(alerts []model.Alert) RelationAnchors {
 		ConflictDataCountries:  make(map[string]struct{}),
 		KnownActors:            knownActorCanonicals(),
 		SanctionedActors:       make(map[string]struct{}),
+		MalwareIOCs:            make(map[string]struct{}),
 	}
 	for _, alert := range alerts {
+		if isMalwareFeedSource(alert) {
+			for _, ioc := range extractMalwareIOCs(alert) {
+				anchors.MalwareIOCs[ioc] = struct{}{}
+			}
+		}
 		switch {
 		case isKEVSource(alert):
 			for _, cve := range extractCVEs(alert.Title) {
@@ -62,6 +69,7 @@ func ApplyAnchorCorroboration(
 	memberAlerts []model.Alert,
 	sharedCVEs []string,
 	sharedEntities []string,
+	sharedMalware []string,
 	anchors RelationAnchors,
 ) []string {
 	out := append([]string{}, reasons...)
@@ -89,6 +97,16 @@ func ApplyAnchorCorroboration(
 		}
 		if _, ok := anchors.SanctionedActors[normalized]; ok {
 			out = appendUniqueString(out, "anchor:sanctioned:"+normalized)
+		}
+	}
+
+	for _, ioc := range sharedMalware {
+		normalized := strings.TrimSpace(ioc)
+		if normalized == "" {
+			continue
+		}
+		if _, ok := anchors.MalwareIOCs[normalized]; ok {
+			out = appendUniqueString(out, "anchor:malware:"+normalized)
 		}
 	}
 

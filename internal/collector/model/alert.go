@@ -39,6 +39,8 @@ type IncidentLink struct {
 	LinkReasons       []string `json:"link_reasons,omitempty"`
 	SharedCVEs        []string `json:"shared_cves,omitempty"`
 	SharedEntities    []string `json:"shared_entities,omitempty"`
+	SharedMalware     []string `json:"shared_malware,omitempty"`
+	SharedSectors     []string `json:"shared_sectors,omitempty"`
 	SharedCountries   []string `json:"shared_countries,omitempty"`
 }
 
@@ -54,6 +56,8 @@ type IncidentSummary struct {
 	LinkReasons    []string `json:"link_reasons"`
 	CVEs           []string `json:"cves,omitempty"`
 	Entities       []string `json:"entities,omitempty"`
+	Malware        []string `json:"malware,omitempty"`
+	Sectors        []string `json:"sectors,omitempty"`
 	Countries      []string `json:"countries,omitempty"`
 	AttackType     string   `json:"attack_type,omitempty"`
 	FirstSeen      string   `json:"first_seen"`
