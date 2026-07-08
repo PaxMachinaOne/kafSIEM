@@ -18,20 +18,17 @@ func BuildIncidentOverview(summary model.IncidentSummary, alerts []model.Alert) 
 		byID[alert.AlertID] = alert
 	}
 
+	// Event geography only: falling back to the publisher's country would put
+	// a UK feed's GB into the footprint of an incident in India.
 	geo := model.IncidentGeoSummary{CountryCodes: uniqueSorted(append([]string{}, summary.Countries...))}
 	countryNames := make(map[string]string)
 	for _, alert := range alerts {
 		code := strings.ToUpper(strings.TrimSpace(alert.EventCountryCode))
 		if code == "" {
-			code = strings.ToUpper(strings.TrimSpace(alert.Source.CountryCode))
-		}
-		if code == "" {
 			continue
 		}
 		geo.CountryCodes = appendUniqueString(geo.CountryCodes, code)
 		if name := strings.TrimSpace(alert.EventCountry); name != "" {
-			countryNames[code] = name
-		} else if name := strings.TrimSpace(alert.Source.Country); name != "" {
 			countryNames[code] = name
 		}
 	}
@@ -56,10 +53,6 @@ func BuildIncidentOverview(summary model.IncidentSummary, alerts []model.Alert) 
 		} else if alert.Incident != nil && alert.Incident.Role != "" {
 			role = alert.Incident.Role
 		}
-		code := strings.ToUpper(strings.TrimSpace(alert.EventCountryCode))
-		if code == "" {
-			code = strings.ToUpper(strings.TrimSpace(alert.Source.CountryCode))
-		}
 		timeline = append(timeline, model.IncidentTimelineEntry{
 			AlertID:       alert.AlertID,
 			FirstSeen:     alert.FirstSeen,
@@ -69,7 +62,7 @@ func BuildIncidentOverview(summary model.IncidentSummary, alerts []model.Alert) 
 			Title:         alert.Title,
 			Severity:      alert.Severity,
 			Category:      alert.Category,
-			CountryCode:   code,
+			CountryCode:   strings.ToUpper(strings.TrimSpace(alert.EventCountryCode)),
 			Role:          role,
 		})
 	}

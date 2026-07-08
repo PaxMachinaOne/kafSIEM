@@ -27,7 +27,7 @@ func TestApplyIncidentLinksRegressionSingletons(t *testing.T) {
 	}
 }
 
-func TestApplyIncidentLinksRegressionSameSourceCVE(t *testing.T) {
+func TestApplyIncidentLinksRegressionSameSourceCVENotCorroborated(t *testing.T) {
 	alerts := []model.Alert{
 		{
 			AlertID:   "c1",
@@ -51,11 +51,85 @@ func TestApplyIncidentLinksRegressionSameSourceCVE(t *testing.T) {
 		},
 	}
 	_, summaries := ApplyIncidentLinks(alerts)
+	if len(summaries) != 0 {
+		t.Fatalf("same-source CVE mentions are not corroboration, got %d incidents", len(summaries))
+	}
+}
+
+func TestApplyIncidentLinksRegressionCrossSourceCVEPrimary(t *testing.T) {
+	alerts := []model.Alert{
+		{
+			AlertID:   "c1",
+			SourceID:  "cert-a",
+			Title:     "Vendor bulletin for CVE-2026-5678 in controllers",
+			Category:  "cyber_advisory",
+			Severity:  "high",
+			FirstSeen: "2026-04-10T10:00:00Z",
+			LastSeen:  "2026-04-10T10:00:00Z",
+			Triage:    &model.Triage{RelevanceScore: 0.4},
+		},
+		{
+			AlertID:   "c2",
+			SourceID:  "cert-b",
+			Title:     "Updated guidance for CVE-2026-5678 exploitation attempts",
+			Category:  "cyber_advisory",
+			Severity:  "critical",
+			FirstSeen: "2026-04-10T11:00:00Z",
+			LastSeen:  "2026-04-10T11:00:00Z",
+			Triage:    &model.Triage{RelevanceScore: 0.9},
+		},
+	}
+	_, summaries := ApplyIncidentLinks(alerts)
 	if len(summaries) != 1 {
-		t.Fatalf("expected CVE incident across same source, got %d", len(summaries))
+		t.Fatalf("expected CVE incident across sources, got %d", len(summaries))
 	}
 	if summaries[0].PrimaryAlertID != "c2" {
 		t.Fatalf("expected higher triage score as primary, got %s", summaries[0].PrimaryAlertID)
+	}
+	if summaries[0].SourceCount != 2 {
+		t.Fatalf("expected 2 distinct sources, got %d", summaries[0].SourceCount)
+	}
+}
+
+func TestApplyIncidentLinksRegressionStableIDWhenMemberJoins(t *testing.T) {
+	base := []model.Alert{
+		{
+			AlertID:   "m-old",
+			SourceID:  "src-a",
+			Title:     "Exploit chain for CVE-2026-7777 hits water utilities",
+			Category:  "cyber_advisory",
+			Severity:  "high",
+			FirstSeen: "2026-04-10T10:00:00Z",
+			LastSeen:  "2026-04-10T10:00:00Z",
+		},
+		{
+			AlertID:   "n-peer",
+			SourceID:  "src-b",
+			Title:     "CERT alert on CVE-2026-7777 exploitation in utilities",
+			Category:  "cyber_advisory",
+			Severity:  "critical",
+			FirstSeen: "2026-04-10T11:00:00Z",
+			LastSeen:  "2026-04-10T11:00:00Z",
+		},
+	}
+	// Joining member sorts lexicographically before every existing member; the
+	// incident ID must stay anchored to the oldest member, not the smallest ID.
+	joiner := model.Alert{
+		AlertID:   "a-new",
+		SourceID:  "src-c",
+		Title:     "Follow-up advisory for CVE-2026-7777 in water sector",
+		Category:  "cyber_advisory",
+		Severity:  "high",
+		FirstSeen: "2026-04-10T12:00:00Z",
+		LastSeen:  "2026-04-10T12:00:00Z",
+	}
+	_, before := ApplyIncidentLinks(base)
+	_, after := ApplyIncidentLinks(append(base, joiner))
+	if len(before) != 1 || len(after) != 1 {
+		t.Fatalf("expected one incident in both runs, got %d and %d", len(before), len(after))
+	}
+	if before[0].IncidentID != after[0].IncidentID {
+		t.Fatalf("incident id changed when member joined: %s vs %s", before[0].IncidentID, after[0].IncidentID)
 	}
 }
 

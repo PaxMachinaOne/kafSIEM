@@ -9,20 +9,20 @@ import (
 func TestApplyIncidentLinksCrossSource(t *testing.T) {
 	alerts := []model.Alert{
 		{
-			AlertID:  "a1",
-			SourceID: "src-a",
-			Title:    "Mogadishu market attack kills twelve civilians",
-			Category: "terrorism_tip",
-			Severity: "high",
+			AlertID:   "a1",
+			SourceID:  "src-a",
+			Title:     "Mogadishu market attack kills twelve civilians",
+			Category:  "terrorism_tip",
+			Severity:  "high",
 			FirstSeen: "2026-04-10T10:00:00Z",
 			LastSeen:  "2026-04-10T10:00:00Z",
 		},
 		{
-			AlertID:  "a2",
-			SourceID: "src-b",
-			Title:    "Mogadishu market attack leaves twelve civilians dead",
-			Category: "terrorism_tip",
-			Severity: "high",
+			AlertID:   "a2",
+			SourceID:  "src-b",
+			Title:     "Mogadishu market attack leaves twelve civilians dead",
+			Category:  "terrorism_tip",
+			Severity:  "high",
 			FirstSeen: "2026-04-10T11:00:00Z",
 			LastSeen:  "2026-04-10T11:00:00Z",
 		},
@@ -54,20 +54,20 @@ func TestApplyIncidentLinksCrossSource(t *testing.T) {
 func TestApplyIncidentLinksCVE(t *testing.T) {
 	alerts := []model.Alert{
 		{
-			AlertID:  "c1",
-			SourceID: "cert-a",
-			Title:    "CISA adds CVE-2026-1234 to KEV catalog",
-			Category: "cyber_advisory",
-			Severity: "critical",
+			AlertID:   "c1",
+			SourceID:  "cert-a",
+			Title:     "CISA adds CVE-2026-1234 to KEV catalog",
+			Category:  "cyber_advisory",
+			Severity:  "critical",
 			FirstSeen: "2026-04-10T10:00:00Z",
 			LastSeen:  "2026-04-10T10:00:00Z",
 		},
 		{
-			AlertID:  "c2",
-			SourceID: "cert-b",
-			Title:    "Patch advisory for CVE-2026-1234 in edge routers",
-			Category: "cyber_advisory",
-			Severity: "high",
+			AlertID:   "c2",
+			SourceID:  "cert-b",
+			Title:     "Patch advisory for CVE-2026-1234 in edge routers",
+			Category:  "cyber_advisory",
+			Severity:  "high",
 			FirstSeen: "2026-04-10T12:00:00Z",
 			LastSeen:  "2026-04-10T12:00:00Z",
 		},
@@ -119,6 +119,32 @@ func TestFinalizeActiveAlertsCrossSourceBeforeDedup(t *testing.T) {
 	}
 	if len(finalized[0].Incident.RelatedAlertIDs) != 1 {
 		t.Fatalf("expected one related alert id, got %#v", finalized[0].Incident.RelatedAlertIDs)
+	}
+}
+
+func TestCollectCountriesIgnoresPublisherGeography(t *testing.T) {
+	idx := map[string]model.Alert{
+		"a": {AlertID: "a", EventCountryCode: "in"},
+		"b": {AlertID: "b", Source: model.SourceMetadata{CountryCode: "GB"}},
+		"c": {AlertID: "c", EventCountryCode: "IN"},
+	}
+	got := collectCountries([]string{"a", "b", "c"}, idx)
+	if len(got) != 1 || got[0] != "IN" {
+		t.Fatalf("expected event geography only [IN], got %v", got)
+	}
+}
+
+func TestMaxMemberSeverityEscalates(t *testing.T) {
+	members := []model.Alert{
+		{Severity: "medium"},
+		{Severity: "critical"},
+		{Severity: "high"},
+	}
+	if got := maxMemberSeverity(members, "high"); got != "critical" {
+		t.Fatalf("expected critical, got %s", got)
+	}
+	if got := maxMemberSeverity(nil, "high"); got != "high" {
+		t.Fatalf("expected fallback high, got %s", got)
 	}
 }
 

@@ -18,9 +18,9 @@ import (
 var cvePattern = regexp.MustCompile(`(?i)\bCVE-\d{4}-\d{4,}\b`)
 
 const (
-	cveIncidentWindowHours     = 14 * 24
-	entityIncidentWindowHours  = 7 * 24
-	countryIncidentWindowHours = 7 * 24
+	cveIncidentWindowHours      = 14 * 24
+	entityIncidentWindowHours   = 7 * 24
+	countryIncidentWindowHours  = 7 * 24
 	countryWeakJaccardThreshold = 0.35
 )
 
@@ -147,6 +147,9 @@ func ApplyIncidentLinks(alerts []model.Alert) ([]model.Alert, []model.IncidentSu
 			if hoursApart(left.ts, right.ts) > cveIncidentWindowHours {
 				continue
 			}
+			if left.alert.SourceID == right.alert.SourceID {
+				continue
+			}
 			shared := intersectStrings(left.cves, right.cves)
 			if len(shared) == 0 {
 				continue
@@ -265,12 +268,12 @@ func ApplyIncidentLinks(alerts []model.Alert) ([]model.Alert, []model.IncidentSu
 	copy(out, alerts)
 	summaries := make([]model.IncidentSummary, 0)
 
-	for root, memberIDs := range groups {
+	for _, memberIDs := range groups {
 		memberIDs = uniqueSorted(memberIDs)
 		if len(memberIDs) < 2 {
 			continue
 		}
-		incidentID := incidentIDFromParts("bundle", root)
+		incidentID := incidentIDFromParts("bundle", clusterAnchorID(memberIDs, alertIndex))
 		primary := pickPrimaryAlert(memberIDs, alertIndex)
 		reasons := uniqueSorted(collectReasons(memberIDs, reasonsByAlert))
 		sharedCVEs := uniqueSorted(collectCVEs(memberIDs, cvesByAlert))
@@ -281,6 +284,7 @@ func ApplyIncidentLinks(alerts []model.Alert) ([]model.Alert, []model.IncidentSu
 		for _, id := range memberIDs {
 			memberAlerts = append(memberAlerts, alertIndex[id])
 		}
+		sourceCount := countDistinctSources(memberAlerts)
 		sharedCountries := collectCountries(memberIDs, alertIndex)
 		reasons = ApplyAnchorCorroboration(reasons, memberAlerts, sharedCVEs, sharedEntities, sharedMalware, anchors)
 		for _, id := range memberIDs {
@@ -288,7 +292,7 @@ func ApplyIncidentLinks(alerts []model.Alert) ([]model.Alert, []model.IncidentSu
 				if out[i].AlertID != id {
 					continue
 				}
-				out[i].Incident = buildIncidentLink(incidentID, primary.AlertID, id, memberIDs, reasons, sharedCVEs, sharedEntities, sharedMalware, sharedSectors, sharedCountries)
+				out[i].Incident = buildIncidentLink(incidentID, primary.AlertID, id, memberIDs, sourceCount, reasons, sharedCVEs, sharedEntities, sharedMalware, sharedSectors, sharedCountries)
 				break
 			}
 		}
@@ -296,8 +300,9 @@ func ApplyIncidentLinks(alerts []model.Alert) ([]model.Alert, []model.IncidentSu
 			IncidentID:     incidentID,
 			Title:          primary.Title,
 			Category:       primary.Category,
-			Severity:       primary.Severity,
+			Severity:       maxMemberSeverity(memberAlerts, primary.Severity),
 			MemberCount:    len(memberIDs),
+			SourceCount:    sourceCount,
 			PrimaryAlertID: primary.AlertID,
 			AlertIDs:       memberIDs,
 			LinkReasons:    reasons,
@@ -362,6 +367,7 @@ func buildIncidentLink(
 	primaryAlertID string,
 	alertID string,
 	memberIDs []string,
+	sourceCount int,
 	reasons []string,
 	sharedCVEs []string,
 	sharedEntities []string,
@@ -382,6 +388,7 @@ func buildIncidentLink(
 	return &model.IncidentLink{
 		IncidentID:      incidentID,
 		MemberCount:     len(memberIDs),
+		SourceCount:     sourceCount,
 		PrimaryAlertID:  primaryAlertID,
 		Role:            role,
 		RelatedAlertIDs: related,
@@ -469,15 +476,13 @@ func shouldCountryLink(left, right incidentFingerprints) bool {
 	return false
 }
 
+// collectCountries aggregates event geography only. Publisher/source country
+// must not leak into the cluster footprint: a UK feed reporting on India would
+// otherwise show GB in the geographic spread.
 func collectCountries(memberIDs []string, alertIndex map[string]model.Alert) []string {
 	out := make([]string, 0)
 	for _, id := range memberIDs {
-		alert := alertIndex[id]
-		if code := eventCountryCode(alert); code != "" {
-			out = append(out, code)
-			continue
-		}
-		if code := strings.ToUpper(strings.TrimSpace(alert.Source.CountryCode)); code != "" {
+		if code := eventCountryCode(alertIndex[id]); code != "" {
 			out = append(out, code)
 		}
 	}
@@ -508,6 +513,56 @@ func entityLinkCategory(category string) bool {
 	default:
 		return false
 	}
+}
+
+// clusterAnchorID picks the member with the earliest FirstSeen (alert ID as
+// tie-break) so the incident ID survives new members joining the cluster.
+// Hashing the union-find root would reassign the ID whenever a member with a
+// smaller alert ID arrives.
+func clusterAnchorID(memberIDs []string, alertIndex map[string]model.Alert) string {
+	anchor := alertIndex[memberIDs[0]]
+	for _, id := range memberIDs[1:] {
+		candidate := alertIndex[id]
+		if candidate.FirstSeen < anchor.FirstSeen ||
+			(candidate.FirstSeen == anchor.FirstSeen && candidate.AlertID < anchor.AlertID) {
+			anchor = candidate
+		}
+	}
+	return anchor.AlertID
+}
+
+func countDistinctSources(memberAlerts []model.Alert) int {
+	seen := make(map[string]struct{}, len(memberAlerts))
+	for _, alert := range memberAlerts {
+		if id := strings.TrimSpace(alert.SourceID); id != "" {
+			seen[id] = struct{}{}
+		}
+	}
+	return len(seen)
+}
+
+var severityRank = map[string]int{
+	"critical":      5,
+	"high":          4,
+	"medium":        3,
+	"moderate":      3,
+	"low":           2,
+	"info":          1,
+	"informational": 1,
+}
+
+// maxMemberSeverity escalates the incident to the highest member severity so
+// corroboration is never reported below its most severe constituent alert.
+func maxMemberSeverity(memberAlerts []model.Alert, fallback string) string {
+	best := fallback
+	bestRank := severityRank[strings.ToLower(strings.TrimSpace(fallback))]
+	for _, alert := range memberAlerts {
+		if rank := severityRank[strings.ToLower(strings.TrimSpace(alert.Severity))]; rank > bestRank {
+			best = alert.Severity
+			bestRank = rank
+		}
+	}
+	return best
 }
 
 func incidentIDFromParts(kind, key string) string {
