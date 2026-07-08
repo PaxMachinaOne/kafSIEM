@@ -47,12 +47,12 @@ func (db *DB) SaveOSINTIncidents(ctx context.Context, incidents []model.Incident
 		countriesJSON, _ := json.Marshal(incident.Countries)
 		if _, err := tx.ExecContext(ctx, `
 INSERT INTO osint_incidents (
-  incident_id, title, category, severity, member_count, primary_alert_id,
+  incident_id, title, category, severity, member_count, source_count, primary_alert_id,
   alert_ids_json, link_reasons_json, cves_json, entities_json, malware_json, sectors_json, countries_json, attack_type,
   first_seen, last_seen, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `, incident.IncidentID, incident.Title, incident.Category, incident.Severity, incident.MemberCount,
-			incident.PrimaryAlertID, string(alertIDsJSON), string(reasonsJSON), string(cvesJSON),
+			incident.SourceCount, incident.PrimaryAlertID, string(alertIDsJSON), string(reasonsJSON), string(cvesJSON),
 			string(entitiesJSON), string(malwareJSON), string(sectorsJSON), string(countriesJSON), incident.AttackType,
 			incident.FirstSeen, incident.LastSeen, updatedAt); err != nil {
 			return fmt.Errorf("insert osint incident %s: %w", incident.IncidentID, err)
@@ -73,7 +73,7 @@ func (db *DB) ListOSINTIncidents(ctx context.Context, limit int) ([]model.Incide
 		limit = 50
 	}
 	rows, err := db.sql.QueryContext(ctx, `
-SELECT incident_id, title, category, severity, member_count, primary_alert_id,
+SELECT incident_id, title, category, severity, member_count, source_count, primary_alert_id,
        alert_ids_json, link_reasons_json, cves_json, entities_json, malware_json, sectors_json, countries_json,
        attack_type, first_seen, last_seen
   FROM osint_incidents
@@ -106,7 +106,7 @@ func (db *DB) GetOSINTIncident(ctx context.Context, incidentID string) (OSINTInc
 	}
 
 	row := db.sql.QueryRowContext(ctx, `
-SELECT incident_id, title, category, severity, member_count, primary_alert_id,
+SELECT incident_id, title, category, severity, member_count, source_count, primary_alert_id,
        alert_ids_json, link_reasons_json, cves_json, entities_json, malware_json, sectors_json, countries_json,
        attack_type, first_seen, last_seen
   FROM osint_incidents
@@ -179,7 +179,7 @@ func scanIncidentSummaryRow(row incidentScanner) (model.IncidentSummary, error) 
 	var alertIDsJSON, reasonsJSON, cvesJSON, entitiesJSON, malwareJSON, sectorsJSON, countriesJSON string
 	if err := row.Scan(
 		&item.IncidentID, &item.Title, &item.Category, &item.Severity, &item.MemberCount,
-		&item.PrimaryAlertID, &alertIDsJSON, &reasonsJSON, &cvesJSON, &entitiesJSON, &malwareJSON, &sectorsJSON,
+		&item.SourceCount, &item.PrimaryAlertID, &alertIDsJSON, &reasonsJSON, &cvesJSON, &entitiesJSON, &malwareJSON, &sectorsJSON,
 		&countriesJSON, &item.AttackType,
 		&item.FirstSeen, &item.LastSeen,
 	); err != nil {

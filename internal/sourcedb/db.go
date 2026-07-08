@@ -154,6 +154,7 @@ func (db *DB) Init(ctx context.Context) error {
 		`ALTER TABLE osint_incidents ADD COLUMN malware_json TEXT NOT NULL DEFAULT '[]'`,
 		`ALTER TABLE osint_incidents ADD COLUMN sectors_json TEXT NOT NULL DEFAULT '[]'`,
 		`ALTER TABLE osint_incidents ADD COLUMN attack_type TEXT NOT NULL DEFAULT 'general'`,
+		`ALTER TABLE osint_incidents ADD COLUMN source_count INTEGER NOT NULL DEFAULT 0`,
 	} {
 		if _, err := db.sql.ExecContext(ctx, stmt); err != nil && !isDuplicateColumnError(err) {
 			return fmt.Errorf("migrate source DB schema: %w", err)

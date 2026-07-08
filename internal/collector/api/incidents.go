@@ -51,6 +51,7 @@ func (s *Server) handleOSINTIncident(w http.ResponseWriter, r *http.Request) {
 		"category":         detail.Category,
 		"severity":         detail.Severity,
 		"member_count":     detail.MemberCount,
+		"source_count":     detail.SourceCount,
 		"primary_alert_id": detail.PrimaryAlertID,
 		"alert_ids":        detail.AlertIDs,
 		"link_reasons":     detail.LinkReasons,

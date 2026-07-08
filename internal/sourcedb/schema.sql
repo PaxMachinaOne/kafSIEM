@@ -317,6 +317,7 @@ CREATE TABLE IF NOT EXISTS osint_incidents (
   category TEXT NOT NULL,
   severity TEXT NOT NULL,
   member_count INTEGER NOT NULL,
+  source_count INTEGER NOT NULL DEFAULT 0,
   primary_alert_id TEXT NOT NULL,
   alert_ids_json TEXT NOT NULL DEFAULT '[]',
   link_reasons_json TEXT NOT NULL DEFAULT '[]',
