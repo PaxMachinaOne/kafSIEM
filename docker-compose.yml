@@ -3,11 +3,9 @@ services:
     container_name: kafsiem-browser
     image: "${KAFSIEM_BROWSER_IMAGE:-ghcr.io/browserless/chromium:v2.44.0}"
     environment:
-      PREBOOT_CHROME: "true"
-      MAX_CONCURRENT_SESSIONS: "${BROWSER_MAX_CONCURRENCY:-3}"
-      CONNECTION_TIMEOUT: "120000"
+      CONCURRENT: "${BROWSER_MAX_CONCURRENCY:-4}"
       TIMEOUT: "300000"
-      QUEUED: "true"
+      QUEUED: "${BROWSER_QUEUE_SIZE:-20}"
       HEALTH: "true"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3000/json/version >/dev/null || exit 1"]

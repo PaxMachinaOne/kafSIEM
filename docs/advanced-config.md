@@ -15,6 +15,7 @@ leave these unset and rely on built-in defaults.
 | `BROWSER_ENABLED` | `true` (compose) |
 | `BROWSER_WS_URL` | `ws://browser:3000` |
 | `BROWSER_MAX_CONCURRENCY` | `4` |
+| `BROWSER_QUEUE_SIZE` | `20` |
 | `BROWSER_CONNECT_RETRIES` | `3` |
 | `BROWSER_CONNECT_RETRY_DELAY_MS` | `1000` |
 | `BROWSER_TIMEOUT_MS` | `30000` |
