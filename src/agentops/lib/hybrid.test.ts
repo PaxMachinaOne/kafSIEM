@@ -92,4 +92,70 @@ describe("buildFusionMatches", () => {
     const matches = buildFusionMatches(flow, [jsonMessage(`{"category":"other"}`)], [baseAlert({ title: "Unrelated but nearby" })]);
     expect(matches[0]?.match_reasons).toContain("time-window:72h");
   });
+
+  test("matches incident cluster CVEs from flow vulnerability fields", () => {
+    const matches = buildFusionMatches(
+      flow,
+      [jsonMessage(`{"vulnerability":"CVE-2026-12345","plant":"desal-east"}`)],
+      [
+        baseAlert({
+          title: "Corroborating OT advisory without CVE in title",
+          incident: {
+            incident_id: "inc-test",
+            member_count: 2,
+            related_alert_ids: ["a2"],
+            link_reasons: ["shared_cve:CVE-2026-12345"],
+            shared_cves: ["CVE-2026-12345"],
+          },
+        }),
+      ],
+    );
+    expect(matches[0]?.match_reasons).toContain("incident-cve:CVE-2026-12345");
+    expect(matches[0]?.match_reasons).toContain("incident:inc-test");
+    expect(matches[0]?.incident_id).toBe("inc-test");
+  });
+
+  test("matches incident shared entities from flow actor fields", () => {
+    const matches = buildFusionMatches(
+      flow,
+      [jsonMessage(`{"actor":"Islamic State","event_country_code":"so"}`)],
+      [
+        baseAlert({
+          title: "Mogadishu convoy ambush leaves four security personnel dead",
+          category: "conflict_monitoring",
+          incident: {
+            incident_id: "inc-actor",
+            member_count: 2,
+            related_alert_ids: ["a2"],
+            link_reasons: ["shared_entity:Islamic State"],
+            shared_entities: ["Islamic State"],
+          },
+        }),
+      ],
+    );
+    expect(matches[0]?.match_reasons).toContain("incident-entity:Islamic State");
+    expect(matches[0]?.match_reasons).toContain("incident:inc-actor");
+  });
+
+  test("prioritizes incident-backed fusion matches", () => {
+    const matches = buildFusionMatches(
+      flow,
+      [jsonMessage(`{"cve":"CVE-2026-12345"}`)],
+      [
+        baseAlert({ alert_id: "solo", title: "Solo advisory for CVE-2026-12345" }),
+        baseAlert({
+          alert_id: "cluster",
+          title: "Cluster anchor advisory",
+          incident: {
+            incident_id: "inc-ranked",
+            member_count: 3,
+            related_alert_ids: ["a2", "a3"],
+            link_reasons: ["shared_cve:CVE-2026-12345"],
+            shared_cves: ["CVE-2026-12345"],
+          },
+        }),
+      ],
+    );
+    expect(matches[0]?.alert_id).toBe("cluster");
+  });
 });

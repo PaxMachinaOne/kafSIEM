@@ -25,6 +25,14 @@
     "triage": {
       "relevance_score": 0.91,
       "disposition": "active"
+    },
+    "incident": {
+      "incident_id": "inc-demo-cve-12345",
+      "member_count": 3,
+      "primary_alert_id": "advisory-f5-2026-12345",
+      "related_alert_ids": ["advisory-cisa-2026-12345", "advisory-vendor-2026-12345"],
+      "link_reasons": ["shared_cve:CVE-2026-12345"],
+      "shared_cves": ["CVE-2026-12345"]
     }
   }
 ]

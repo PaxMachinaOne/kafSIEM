@@ -183,3 +183,9 @@ Active OSINT alerts can carry an `incident` block and a parallel
 Primary alerts in a cluster expose `related_alert_ids` and `link_reasons`.
 The OSINT alert detail drawer renders this as a collapsible linked-incident
 panel without adding a new top-level UI mode.
+
+Fusion mode (`HYBRID`) links Operations flows to incident clusters through
+`src/agentops/lib/hybrid.ts`. Flow message indicators (CVE, sector, geography,
+actor) are matched against both alert text and `incident.shared_cves` /
+`incident.shared_entities`. Incident-backed matches surface in the existing
+Fusion Context block with corroboration counts, without a new graph panel.

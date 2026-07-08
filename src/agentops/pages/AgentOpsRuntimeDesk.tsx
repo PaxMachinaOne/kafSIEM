@@ -660,6 +660,9 @@ export function AgentOpsRuntimeDesk({ mode }: Props) {
                           <div className="mt-1 text-xs text-[#6b8090]">{match.source}</div>
                           <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] text-[#a8b8c4]">
                             <Tag>{match.severity}</Tag>
+                            {match.incident_member_count && match.incident_member_count >= 2 ? (
+                              <Tag>{match.incident_member_count} linked alerts</Tag>
+                            ) : null}
                             {match.match_reasons.map((reason) => <Tag key={reason}>{reason}</Tag>)}
                           </div>
                         </div>
