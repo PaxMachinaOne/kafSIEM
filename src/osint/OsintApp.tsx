@@ -428,7 +428,7 @@ export default function App() {
   const handleSearchChange = useCallback((query: string) => {
     setSearchQuery(query);
     setSelectedIncident(null);
-  }, []);
+  }, [setSearchQuery]);
 
   const handleMenuChange = useCallback((view: string) => {
     const next = view === "relations" ? "relations" : "intel";
