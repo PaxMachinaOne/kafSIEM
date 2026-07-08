@@ -14,6 +14,7 @@ export function useIncidentDetail(incidentId: string | undefined, enabled = true
       return;
     }
 
+    const resolvedIncidentId = incidentId;
     let cancelled = false;
     const controller = new AbortController();
 
@@ -21,7 +22,7 @@ export function useIncidentDetail(incidentId: string | undefined, enabled = true
       setIsLoading(true);
       try {
         const response = await fetch(
-          `${incidentDetailURL(incidentId)}?t=${Date.now()}`,
+          `${incidentDetailURL(resolvedIncidentId)}?t=${Date.now()}`,
           { cache: "no-store", signal: controller.signal },
         );
         if (!response.ok) {
