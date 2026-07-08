@@ -18,6 +18,7 @@ func ClassifyAttackType(summary model.IncidentSummary, memberAlerts []model.Aler
 
 	cyber := hasCyberSignals(summary) || hasCategory(memberAlerts, "cyber_advisory")
 	terror := hasTerrorSignals(summary, memberAlerts)
+	hazard := hasHazardSignals(memberAlerts)
 	maritime := hasCategory(memberAlerts, "maritime_security")
 	conflict := hasCategory(memberAlerts, "conflict_monitoring", "humanitarian_security")
 	travel := hasCategory(memberAlerts, "travel_warning")
@@ -29,6 +30,8 @@ func ClassifyAttackType(summary model.IncidentSummary, memberAlerts []model.Aler
 		return "cyber"
 	case terror:
 		return "terror"
+	case hazard:
+		return "hazard"
 	case maritime:
 		return "maritime"
 	case conflict:
@@ -38,6 +41,51 @@ func ClassifyAttackType(summary model.IncidentSummary, memberAlerts []model.Aler
 	default:
 		return inferAttackTypeFromSummary(summary)
 	}
+}
+
+var hazardSubcategories = map[string]struct{}{
+	"flood":          {},
+	"wildfire":       {},
+	"storm":          {},
+	"natural_hazard": {},
+	"hazard_warning": {},
+}
+
+var hazardTitleKeywords = []string{
+	"surf warning", "hazardous surf", "marine weather", "weather warning",
+	"forest fire", "bushfire", "wildfire", "flood", "storm", "cyclone",
+	"hurricane", "typhoon", "earthquake", "tsunami", "eruption", "heatwave",
+	"heat wave", "landslide", "avalanche",
+}
+
+// hasHazardSignals separates natural-hazard and weather advisories from the
+// threat lenses: a hazardous surf warning must not surface as a maritime
+// threat in the public Relations panel. Every member has to look like a
+// hazard (category, subcategory, or title keyword) so mixed clusters keep
+// their threat lens.
+func hasHazardSignals(memberAlerts []model.Alert) bool {
+	if hasCategory(memberAlerts, "environmental_disaster", "emergency_management") {
+		return true
+	}
+	for _, alert := range memberAlerts {
+		if !isHazardAlert(alert) {
+			return false
+		}
+	}
+	return len(memberAlerts) > 0
+}
+
+func isHazardAlert(alert model.Alert) bool {
+	if _, ok := hazardSubcategories[strings.ToLower(alert.Subcategory)]; ok {
+		return true
+	}
+	title := strings.ToLower(alert.Title)
+	for _, keyword := range hazardTitleKeywords {
+		if strings.Contains(title, keyword) {
+			return true
+		}
+	}
+	return false
 }
 
 func inferAttackTypeFromSummary(summary model.IncidentSummary) string {
@@ -50,6 +98,8 @@ func inferAttackTypeFromSummary(summary model.IncidentSummary) string {
 	switch summary.Category {
 	case "cyber_advisory":
 		return "cyber"
+	case "environmental_disaster", "emergency_management":
+		return "hazard"
 	case "maritime_security":
 		return "maritime"
 	case "conflict_monitoring", "humanitarian_security":

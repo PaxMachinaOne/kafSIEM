@@ -6,6 +6,7 @@ export type AttackType =
   | "maritime"
   | "conflict"
   | "travel"
+  | "hazard"
   | "hybrid"
   | "general";
 
@@ -15,6 +16,7 @@ export const attackTypeOrder: AttackType[] = [
   "maritime",
   "conflict",
   "travel",
+  "hazard",
   "hybrid",
   "general",
 ];
@@ -25,6 +27,7 @@ export const attackTypeLabels: Record<AttackType, string> = {
   maritime: "Maritime threat",
   conflict: "Conflict event",
   travel: "Travel / security",
+  hazard: "Natural hazard",
   hybrid: "Hybrid campaign",
   general: "Multi-source event",
 };
@@ -35,6 +38,7 @@ export const attackTypeBadge: Record<AttackType, string> = {
   maritime: "border-blue-400/35 bg-blue-400/12 text-blue-200",
   conflict: "border-orange-400/35 bg-orange-400/12 text-orange-200",
   travel: "border-amber-400/35 bg-amber-400/12 text-amber-200",
+  hazard: "border-emerald-400/35 bg-emerald-400/12 text-emerald-200",
   hybrid: "border-violet-400/35 bg-violet-400/12 text-violet-200",
   general: "border-siem-border bg-white/5 text-siem-muted",
 };
@@ -46,6 +50,7 @@ export function normalizeAttackType(value: string | undefined): AttackType {
     case "maritime":
     case "conflict":
     case "travel":
+    case "hazard":
     case "hybrid":
       return value as AttackType;
     default:

@@ -46,6 +46,48 @@ func TestClassifyAttackTypeTerrorCrossCategory(t *testing.T) {
 	}
 }
 
+func TestClassifyAttackTypeHazardOverMaritime(t *testing.T) {
+	summary := model.IncidentSummary{
+		LinkReasons: []string{"cross_source:jaccard:0.75", "shared_country:AU"},
+		Category:    "maritime_security",
+	}
+	alerts := []model.Alert{
+		{Category: "maritime_security", Title: "Hazardous Surf Warning for New South Wales"},
+		{Category: "maritime_security", Title: "Marine weather warning issued for NSW coast"},
+	}
+	if got := ClassifyAttackType(summary, alerts); got != "hazard" {
+		t.Fatalf("expected hazard, got %s", got)
+	}
+}
+
+func TestClassifyAttackTypeHazardSubcategory(t *testing.T) {
+	summary := model.IncidentSummary{
+		LinkReasons: []string{"cross_source:jaccard:0.75"},
+		Category:    "emergency_management",
+	}
+	alerts := []model.Alert{
+		{Category: "emergency_management", Subcategory: "wildfire", Title: "Green forest fire notification in India"},
+		{Category: "emergency_management", Subcategory: "wildfire", Title: "Forest fire notification for Uttarakhand"},
+	}
+	if got := ClassifyAttackType(summary, alerts); got != "hazard" {
+		t.Fatalf("expected hazard, got %s", got)
+	}
+}
+
+func TestClassifyAttackTypeMaritimeThreatStaysMaritime(t *testing.T) {
+	summary := model.IncidentSummary{
+		LinkReasons: []string{"cross_source:jaccard:0.71"},
+		Category:    "maritime_security",
+	}
+	alerts := []model.Alert{
+		{Category: "maritime_security", Title: "Armed boarding of tanker reported in Gulf of Guinea"},
+		{Category: "maritime_security", Title: "Pirates board tanker off Gulf of Guinea coast"},
+	}
+	if got := ClassifyAttackType(summary, alerts); got != "maritime" {
+		t.Fatalf("expected maritime, got %s", got)
+	}
+}
+
 func TestShouldEntityLinkCrossCategoryKnownActor(t *testing.T) {
 	left := incidentFingerprints{
 		alert:  model.Alert{AlertID: "a1", SourceID: "src-a", Category: "conflict_monitoring"},
