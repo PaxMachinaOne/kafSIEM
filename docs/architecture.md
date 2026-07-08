@@ -170,3 +170,16 @@ operations intelligence, KafClaw envelope, replay consumer group.
 
 Public positioning: complementary operations and fusion layer. Not a vendor
 platform clone. Stable OpenAPI for external client generation.
+
+## OSINT incident links
+
+Active OSINT alerts can carry an `incident` block and a parallel
+`incidents.json` index. The collector builds clusters from:
+
+- cross-source fingerprint similarity (existing Jaccard dedup signals)
+- shared CVE identifiers in titles
+- shared actor entities for terrorism, conflict, cyber, and maritime categories
+
+Primary alerts in a cluster expose `related_alert_ids` and `link_reasons`.
+The OSINT alert detail drawer renders this as a collapsible linked-incident
+panel without adding a new top-level UI mode.
