@@ -311,6 +311,24 @@ CREATE INDEX IF NOT EXISTS idx_ucdp_lens_state_updated ON ucdp_lens_state(update
 CREATE INDEX IF NOT EXISTS idx_ucdp_dataset_cache_updated ON ucdp_dataset_cache(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_zone_brief_llm_updated ON zone_brief_llm(updated_at DESC);
 
+CREATE TABLE IF NOT EXISTS osint_incidents (
+  incident_id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  category TEXT NOT NULL,
+  severity TEXT NOT NULL,
+  member_count INTEGER NOT NULL,
+  primary_alert_id TEXT NOT NULL,
+  alert_ids_json TEXT NOT NULL DEFAULT '[]',
+  link_reasons_json TEXT NOT NULL DEFAULT '[]',
+  cves_json TEXT NOT NULL DEFAULT '[]',
+  entities_json TEXT NOT NULL DEFAULT '[]',
+  first_seen TEXT NOT NULL,
+  last_seen TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_osint_incidents_last_seen ON osint_incidents(last_seen DESC);
+CREATE INDEX IF NOT EXISTS idx_osint_incidents_primary ON osint_incidents(primary_alert_id);
+
 CREATE TABLE IF NOT EXISTS cities (
   id INTEGER PRIMARY KEY,
   name TEXT NOT NULL,

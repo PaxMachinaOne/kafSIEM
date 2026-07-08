@@ -60,6 +60,8 @@ func New(db *sourcedb.DB, addr string, stderr io.Writer, allowedOrigins []string
 	mux.HandleFunc("POST /api/agentops/replay", s.handleAgentOpsReplay)
 	mux.HandleFunc("GET /api/agentops/groups", s.handleAgentOpsGroups)
 	mux.HandleFunc("GET /api/health", s.handleHealth)
+	mux.HandleFunc("GET /api/osint/incidents", s.handleOSINTIncidentsList)
+	mux.HandleFunc("GET /api/osint/incidents/{id}", s.handleOSINTIncident)
 	rl := newRateLimiter(30, 5, 10*time.Minute) // 30 requests burst, 5/sec refill
 	s.srv = &http.Server{
 		Addr:         addr,

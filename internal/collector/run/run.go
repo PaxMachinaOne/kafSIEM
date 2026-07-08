@@ -608,6 +608,9 @@ func (r Runner) runOnce(ctx context.Context, cfg config.Config) error {
 	if err := output.Write(cfg, currentActive, currentFiltered, fullState, sourceHealth, duplicateAudit, replacementQueue); err != nil {
 		return err
 	}
+	if err := saveOSINTIncidents(ctx, cfg, currentActive); err != nil {
+		fmt.Fprintf(r.stderr, "WARN osint incidents save: %v\n", err)
+	}
 	if collectorRole(cfg) == "all" {
 		if err := r.writeZoneBriefings(ctx, cfg, sources); err != nil {
 			fmt.Fprintf(r.stderr, "WARN zone briefings: %v\n", err)
@@ -5806,6 +5809,22 @@ func saveAlertState(ctx context.Context, cfg config.Config, alerts []model.Alert
 	return nil
 }
 
+func saveOSINTIncidents(ctx context.Context, cfg config.Config, active []model.Alert) error {
+	if !isSQLiteRegistryPath(cfg.RegistryPath) {
+		return nil
+	}
+	_, incidents := normalize.ApplyIncidentLinks(active)
+	db, err := sourcedb.Open(cfg.RegistryPath)
+	if err != nil {
+		return fmt.Errorf("open source DB for incident save: %w", err)
+	}
+	defer db.Close()
+	if err := db.SaveOSINTIncidents(ctx, incidents); err != nil {
+		return fmt.Errorf("save osint incidents: %w", err)
+	}
+	return nil
+}
+
 func (r Runner) runMergeOnly(ctx context.Context, cfg config.Config, sources []model.RegistrySource) error {
 	if !isSQLiteRegistryPath(cfg.RegistryPath) {
 		return fmt.Errorf("collector role merge requires sqlite registry path")
@@ -5860,6 +5879,9 @@ func (r Runner) runMergeOnly(ctx context.Context, cfg config.Config, sources []m
 	replacementQueue := state.ReadDLQ(cfg.ReplacementQueuePath).Entries()
 	if err := output.Write(cfg, currentActive, currentFiltered, fullState, previousSourceHealth, duplicateAudit, replacementQueue); err != nil {
 		return err
+	}
+	if err := saveOSINTIncidents(ctx, cfg, currentActive); err != nil {
+		fmt.Fprintf(r.stderr, "WARN osint incidents save: %v\n", err)
 	}
 	if err := r.writeNoiseMetrics(ctx, cfg, currentActive, db); err != nil {
 		fmt.Fprintf(r.stderr, "WARN noise metrics: %v\n", err)

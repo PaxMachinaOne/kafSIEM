@@ -181,6 +181,8 @@ func (s *Server) routes() http.Handler {
 	r.Handle("/api/digest", s.legacyProxy)
 	r.Handle("/api/noise-feedback", s.legacyProxy)
 	r.Handle("/api/noise-feedback/*", s.legacyProxy)
+	r.Handle("/api/osint/incidents", s.legacyProxy)
+	r.Handle("/api/osint/incidents/*", s.legacyProxy)
 
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/entities/{type}/{id}", s.handleEntityProfile)
