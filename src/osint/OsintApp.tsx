@@ -457,6 +457,7 @@ export default function App() {
                 incidentSummaries={incidents}
                 incidentsApiAvailable={incidentsApiAvailable}
                 incidentMemberIds={incidentMemberIds}
+                onOpenRelations={() => setLeftPanel("relations")}
                 onSearchTerm={setSearchQuery}
               />
             </Suspense>

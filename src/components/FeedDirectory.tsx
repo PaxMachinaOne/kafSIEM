@@ -50,6 +50,7 @@ interface Props {
   incidentSummaries?: IncidentSummary[];
   incidentsApiAvailable?: boolean;
   incidentMemberIds?: Set<string>;
+  onOpenRelations?: () => void;
   onSearchTerm?: (term: string) => void;
 }
 
@@ -71,6 +72,7 @@ export function FeedDirectory({
   incidentSummaries = [],
   incidentsApiAvailable = false,
   incidentMemberIds = new Set<string>(),
+  onOpenRelations,
   onSearchTerm,
 }: Props) {
   const [now, setNow] = useState(() => Date.now());
@@ -323,7 +325,13 @@ export function FeedDirectory({
         {zoneSummary.linkedClusters > 0 ? (
           <button
             type="button"
-            onClick={() => onIncidentFilterChange?.(!incidentFilter)}
+            onClick={() => {
+              if (incidentsApiAvailable && onOpenRelations) {
+                onOpenRelations();
+                return;
+              }
+              onIncidentFilterChange?.(!incidentFilter);
+            }}
             className={`flex w-full items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-4xs uppercase tracking-[0.14em] transition-colors ${
               incidentFilter
                 ? "border-siem-accent/45 bg-siem-accent/12 text-siem-text"
@@ -334,7 +342,7 @@ export function FeedDirectory({
             <span>
               {zoneSummary.linkedClusters} linked incident{zoneSummary.linkedClusters === 1 ? "" : "s"}
               {incidentsApiAvailable ? "" : ` · ${zoneSummary.linkedInFeed} in feed`}
-              {incidentFilter ? " · filter on" : ""}
+              {incidentsApiAvailable ? " · open graph" : incidentFilter ? " · filter on" : ""}
             </span>
           </button>
         ) : null}
