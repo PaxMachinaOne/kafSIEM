@@ -401,6 +401,26 @@ export default function App() {
     setRequestedViewMode("now_history");
   }, []);
 
+  const handleSeverityFilterChange = useCallback((filter: SeverityFilter) => {
+    setSeverityFilter(filter);
+    setSelectedIncident(null);
+  }, []);
+
+  const handleSearchChange = useCallback((query: string) => {
+    setSearchQuery(query);
+    setSelectedIncident(null);
+  }, []);
+
+  const handleMenuChange = useCallback((view: string) => {
+    const next = view === "relations" ? "relations" : "intel";
+    setLeftPanel(next);
+    // Leaving the relations view must release the cluster focus, otherwise
+    // the map and queue stay pinned to the incident members.
+    if (next === "intel") {
+      setSelectedIncident(null);
+    }
+  }, []);
+
   const handleIncidentSelect = useCallback((incident: IncidentSummary) => {
     setSelectedIncident(incident);
     setSelectedId(incident.primary_alert_id);
@@ -463,9 +483,9 @@ export default function App() {
         selectedSourceIds={selectedSourceIds}
         onSelectedSourceIdsChange={handleSourceSelectionChange}
         searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
+        onSearchChange={handleSearchChange}
         activeMenu={leftPanel === "relations" ? "relations" : "overview"}
-        onMenuChange={(view) => setLeftPanel(view === "relations" ? "relations" : "intel")}
+        onMenuChange={handleMenuChange}
         alerts={alerts}
       />
 
@@ -494,14 +514,14 @@ export default function App() {
                 regionFilter={regionFilter}
                 onSelectCountry={handleCountrySelect}
                 severityFilter={severityFilter}
-                onSeverityFilterChange={setSeverityFilter}
+                onSeverityFilterChange={handleSeverityFilterChange}
                 incidentFilter={incidentFilter}
                 onIncidentFilterChange={handleIncidentFilterChange}
                 incidentSummaries={incidents}
                 incidentsApiAvailable={incidentsApiAvailable}
                 incidentMemberIds={incidentMemberIds}
                 onOpenRelations={() => setLeftPanel("relations")}
-                onSearchTerm={setSearchQuery}
+                onSearchTerm={handleSearchChange}
               />
             </Suspense>
           )}
@@ -530,6 +550,21 @@ export default function App() {
         {/* Right panel — alert queue (contained, scrollable) */}
         <div className={`${mobilePane === "alerts" ? "block" : "hidden"} md:block w-full md:w-[24rem] md:shrink-0 min-h-0`}>
           <div className="flex h-full flex-col overflow-hidden rounded-[1.6rem] border border-siem-border bg-siem-panel/90 shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
+            {selectedIncident ? (
+              <div className="flex items-center justify-between gap-2 border-b border-siem-accent/30 bg-siem-accent/10 px-3 py-2">
+                <div className="min-w-0 text-xxs text-siem-text">
+                  <span className="uppercase tracking-[0.14em] text-siem-muted">Cluster focus</span>
+                  <span className="ml-2 truncate">{selectedIncident.title}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedIncident(null)}
+                  className="shrink-0 rounded-full border border-siem-border px-2 py-0.5 text-xxs text-siem-muted hover:border-siem-accent/40 hover:text-siem-text"
+                >
+                  ✕ clear
+                </button>
+              </div>
+            ) : null}
             {isLoading ? (
               <div className="flex flex-1 items-center justify-center text-sm text-siem-muted">
                 Loading live alert queue...
