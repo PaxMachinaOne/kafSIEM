@@ -13,10 +13,10 @@ import { formatLinkReason } from "@/lib/incident-links";
 import type { IncidentSummary } from "@/types/incident";
 
 interface Props {
-  onSelectPrimaryAlert: (alertId: string) => void;
+  onSelectIncident: (incident: IncidentSummary) => void;
 }
 
-export function IncidentRelationsPanel({ onSelectPrimaryAlert }: Props) {
+export function IncidentRelationsPanel({ onSelectIncident }: Props) {
   const { incidents, isLoading, isAvailable } = useIncidents(100);
   const [attackFilter, setAttackFilter] = useState<AttackType | "all">("all");
 
@@ -81,7 +81,7 @@ export function IncidentRelationsPanel({ onSelectPrimaryAlert }: Props) {
           </div>
         ) : (
           visible.map((incident) => (
-            <IncidentRelationCard key={incident.incident_id} incident={incident} onSelectPrimaryAlert={onSelectPrimaryAlert} />
+            <IncidentRelationCard key={incident.incident_id} incident={incident} onSelectIncident={onSelectIncident} />
           ))
         )}
       </div>
@@ -91,10 +91,10 @@ export function IncidentRelationsPanel({ onSelectPrimaryAlert }: Props) {
 
 function IncidentRelationCard({
   incident,
-  onSelectPrimaryAlert,
+  onSelectIncident,
 }: {
   incident: IncidentSummary;
-  onSelectPrimaryAlert: (alertId: string) => void;
+  onSelectIncident: (incident: IncidentSummary) => void;
 }) {
   const attackType = normalizeAttackType(incident.attack_type);
   const reasons = (incident.link_reasons ?? []).slice(0, 3);
@@ -102,7 +102,7 @@ function IncidentRelationCard({
   return (
     <button
       type="button"
-      onClick={() => onSelectPrimaryAlert(incident.primary_alert_id)}
+      onClick={() => onSelectIncident(incident)}
       className="w-full rounded-xl border border-siem-border bg-siem-panel-strong px-3 py-3 text-left transition-colors hover:border-siem-accent/35 hover:bg-siem-accent/8"
     >
       <div className="flex items-start justify-between gap-2">

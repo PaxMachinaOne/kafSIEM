@@ -199,10 +199,6 @@ export function FeedDirectory({
   const zoneSummary = useMemo(() => {
     const uniqueCountries = new Set(summaryAlerts.map((a) => a.source.country_code));
     const uniqueFeeds = new Set(summaryAlerts.map((a) => a.source_id));
-    const summaryAlertIds = new Set(summaryAlerts.map((a) => a.alert_id));
-    const visibleIncidentSummaries = incidentsApiAvailable
-      ? incidentSummaries.filter((incident) => incident.alert_ids.some((id) => summaryAlertIds.has(id)))
-      : [];
     const totalRegistered = sourceHealth?.total_sources ?? 0;
     const totalFeeds = stableTotalSources > 0
       ? stableTotalSources
@@ -210,7 +206,7 @@ export function FeedDirectory({
         ? totalRegistered
         : uniqueFeeds.size;
     const linkedInFeed = summaryAlerts.filter((alert) => isIncidentMember(alert) || incidentMemberIds.has(alert.alert_id)).length;
-    const linkedClusters = incidentsApiAvailable ? visibleIncidentSummaries.length : linkedInFeed;
+    const linkedClusters = incidentsApiAvailable ? incidentSummaries.length : linkedInFeed;
     return {
       alerts: summaryAlerts.length,
       countries: uniqueCountries.size,
@@ -219,7 +215,7 @@ export function FeedDirectory({
       linkedClusters,
       linkedInFeed,
     };
-  }, [summaryAlerts, sourceHealth, stableTotalSources, incidentSummaries, incidentsApiAvailable, incidentMemberIds]);
+  }, [summaryAlerts, sourceHealth, stableTotalSources, incidentSummaries.length, incidentsApiAvailable, incidentMemberIds]);
 
   const toggleSource = (sourceId: string) => {
     if (selectedSourceIds.includes(sourceId)) {

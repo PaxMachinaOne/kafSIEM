@@ -12,7 +12,9 @@ import { useSearch } from "@/hooks/useSearch";
 import { useSourceHealth } from "@/hooks/useSourceHealth";
 import { useCurrentConflicts } from "@/hooks/useCurrentConflicts";
 import { useIncidents } from "@/hooks/useIncidents";
+import { useIncidentDetail } from "@/hooks/useIncidentDetail";
 import type { ConflictCountryFocus } from "@/types/current-conflicts";
+import type { IncidentSummary } from "@/types/incident";
 import { alertMatchesRegionFilter } from "@/lib/regions";
 import { alertMatchesConflictLens, getConflictLensById } from "@/lib/conflict-lenses";
 import type { Alert, AlertCategory } from "@/types/alert";
@@ -91,6 +93,7 @@ export default function App() {
   const [categoryFilter, setCategoryFilter] = useState<AlertCategory | "all">("all");
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>(null);
   const [incidentFilter, setIncidentFilter] = useState(false);
+  const [selectedIncident, setSelectedIncident] = useState<IncidentSummary | null>(null);
   const [leftPanel, setLeftPanel] = useState<"intel" | "relations">("intel");
   const [regionFilter, setRegionFilter] = useState<string>("Europe");
   const [conflictLensId, setConflictLensId] = useState<string | null>(null);
@@ -105,6 +108,7 @@ export default function App() {
   const preLensRegionRef = useRef<string | null>(null);
   const preLensSourcesRef = useRef<string[] | null>(null);
   const [utcTime, setUtcTime] = useState(() => new Date().toISOString().slice(0, 19).replace("T", " ") + "Z");
+  const { detail: selectedIncidentDetail } = useIncidentDetail(selectedIncident?.incident_id, selectedIncident !== null);
   const activeDynamicConflict = useMemo(
     () => (conflictLensId ? currentConflicts.find((conflict) => conflict.lensIds.includes(conflictLensId)) ?? null : null),
     [conflictLensId, currentConflicts],
@@ -122,6 +126,23 @@ export default function App() {
     (alert: Alert) => isIncidentMember(alert) || incidentMemberIds.has(alert.alert_id),
     [incidentMemberIds],
   );
+  const selectedIncidentAlertIds = useMemo(() => {
+    if (!selectedIncident) return new Set<string>();
+    return new Set(selectedIncidentDetail?.alert_ids ?? selectedIncident.alert_ids);
+  }, [selectedIncident, selectedIncidentDetail?.alert_ids]);
+  const selectedIncidentAlerts = useMemo(() => {
+    if (!selectedIncident) return [];
+    const byID = new Map<string, Alert>();
+    for (const alert of selectedIncidentDetail?.alerts ?? []) {
+      byID.set(alert.alert_id, alert);
+    }
+    for (const alert of [...alerts, ...stateAlerts]) {
+      if (selectedIncidentAlertIds.has(alert.alert_id) && !byID.has(alert.alert_id)) {
+        byID.set(alert.alert_id, alert);
+      }
+    }
+    return [...byID.values()].sort((a, b) => new Date(b.last_seen).getTime() - new Date(a.last_seen).getTime());
+  }, [alerts, selectedIncident, selectedIncidentAlertIds, selectedIncidentDetail?.alerts, stateAlerts]);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -161,6 +182,7 @@ export default function App() {
     setConflictCountryFocus(null);
     setSelectedSourceIds([]);
     setSelectedId(null);
+    setSelectedIncident(null);
   }, []);
 
   const handleConflictLensChange = useCallback((nextLensId: string | null) => {
@@ -200,6 +222,7 @@ export default function App() {
       preLensSourcesRef.current = null;
     }
     setSelectedId(null);
+    setSelectedIncident(null);
   }, [conflictLensId, currentConflicts, regionFilter, selectedSourceIds]);
 
   const regionScopedAlerts = useMemo(() => {
@@ -333,6 +356,7 @@ export default function App() {
     setSelectedSourceIds([]);
     setCategoryFilter("all");
     setSelectedId(null);
+    setSelectedIncident(null);
     // Switch right panel to now+history so counts match left panel totals
     setRequestedViewModeKey((k) => k + 1);
     setRequestedViewMode("now_history");
@@ -353,6 +377,7 @@ export default function App() {
 
   const handleCategorySelect = useCallback((category: AlertCategory | "all") => {
     setCategoryFilter(category);
+    setSelectedIncident(null);
     // Switch right panel to now+history so counts match left panel totals
     setRequestedViewModeKey((k) => k + 1);
     setRequestedViewMode("now_history");
@@ -361,6 +386,7 @@ export default function App() {
   const handleSourceSelectionChange = useCallback((sourceIds: string[]) => {
     setSelectedSourceIds(sourceIds);
     setSelectedId(null);
+    setSelectedIncident(null);
     // Switch right panel to now+history so counts match left panel totals
     setRequestedViewModeKey((k) => k + 1);
     setRequestedViewMode("now_history");
@@ -369,15 +395,31 @@ export default function App() {
   const handleIncidentFilterChange = useCallback((enabled: boolean) => {
     setIncidentFilter(enabled);
     setSelectedId(null);
+    setSelectedIncident(null);
     // Incident members can be in history, so show both queues when this filter changes.
     setRequestedViewModeKey((k) => k + 1);
     setRequestedViewMode("now_history");
   }, []);
 
+  const handleIncidentSelect = useCallback((incident: IncidentSummary) => {
+    setSelectedIncident(incident);
+    setSelectedId(incident.primary_alert_id);
+    setSelectedSourceIds([]);
+    setCategoryFilter("all");
+    setSeverityFilter(null);
+    setRegionFilter("all");
+    setConflictLensId(null);
+    setConflictCountryFocus(null);
+    setIncidentFilter(false);
+    setRequestedViewModeKey((k) => k + 1);
+    setRequestedViewMode("now_history");
+    setMobilePane("alerts");
+  }, []);
 
   const selectedAlert = selectedId
     ? scopedAlerts.find((a) => a.alert_id === selectedId) ??
       scopedStateAlerts.find((a) => a.alert_id === selectedId) ??
+      selectedIncidentAlerts.find((a) => a.alert_id === selectedId) ??
       alerts.find((a) => a.alert_id === selectedId) ??
       stateAlerts.find((a) => a.alert_id === selectedId) ??
       null
@@ -400,11 +442,15 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const exists = alerts.some((a) => a.alert_id === selectedId) || stateAlerts.some((a) => a.alert_id === selectedId);
+    const exists = selectedId !== null && (
+      alerts.some((a) => a.alert_id === selectedId) ||
+      stateAlerts.some((a) => a.alert_id === selectedId) ||
+      selectedIncidentAlertIds.has(selectedId)
+    );
     if (selectedId && !exists) {
       setSelectedId(null);
     }
-  }, [alerts, stateAlerts, selectedId]);
+  }, [alerts, selectedIncidentAlertIds, stateAlerts, selectedId]);
 
   return (
     <div className="flex h-[100dvh] flex-col bg-siem-bg text-siem-text">
@@ -430,10 +476,7 @@ export default function App() {
           {leftPanel === "relations" ? (
             <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-siem-muted">Loading relations...</div>}>
               <IncidentRelationsPanel
-                onSelectPrimaryAlert={(alertId) => {
-                  setSelectedId(alertId);
-                  setMobilePane("alerts");
-                }}
+                onSelectIncident={handleIncidentSelect}
               />
             </Suspense>
           ) : (
@@ -494,8 +537,8 @@ export default function App() {
             ) : (
               <Suspense fallback={<div className="flex flex-1 items-center justify-center text-sm text-siem-muted">Loading alert queue...</div>}>
                 <AlertFeed
-                  alerts={scopedAlerts}
-                  historicalAlerts={scopedStateAlerts}
+                  alerts={selectedIncident ? selectedIncidentAlerts : scopedAlerts}
+                  historicalAlerts={selectedIncident ? selectedIncidentAlerts : scopedStateAlerts}
                   selectedId={selectedId}
                   onSelect={setSelectedId}
                   categoryFilter={categoryFilter}
@@ -551,7 +594,7 @@ export default function App() {
               <Suspense fallback={<div className="flex h-full w-full items-center justify-center text-sm text-siem-muted">Loading alert details...</div>}>
                 <AlertDetail
                   alert={selectedAlert}
-                  alerts={scopedAlerts}
+                  alerts={selectedIncident ? selectedIncidentAlerts : scopedAlerts}
                   onClose={handleClose}
                   onSelectAlert={setSelectedId}
                 />
