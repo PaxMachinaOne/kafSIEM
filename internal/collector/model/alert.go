@@ -26,6 +26,34 @@ type Alert struct {
 	FreshnessHours     int               `json:"freshness_hours"`
 	Reporting          ReportingMetadata `json:"reporting,omitempty"`
 	Triage             *Triage           `json:"triage,omitempty"`
+	Incident           *IncidentLink     `json:"incident,omitempty"`
+}
+
+// IncidentLink connects an alert to a corroborated OSINT incident cluster.
+type IncidentLink struct {
+	IncidentID       string   `json:"incident_id"`
+	MemberCount      int      `json:"member_count"`
+	PrimaryAlertID   string   `json:"primary_alert_id,omitempty"`
+	RelatedAlertIDs  []string `json:"related_alert_ids,omitempty"`
+	LinkReasons      []string `json:"link_reasons,omitempty"`
+	SharedCVEs       []string `json:"shared_cves,omitempty"`
+	SharedEntities   []string `json:"shared_entities,omitempty"`
+}
+
+// IncidentSummary is the index record written to incidents.json.
+type IncidentSummary struct {
+	IncidentID     string   `json:"incident_id"`
+	Title          string   `json:"title"`
+	Category       string   `json:"category"`
+	Severity       string   `json:"severity"`
+	MemberCount    int      `json:"member_count"`
+	PrimaryAlertID string   `json:"primary_alert_id"`
+	AlertIDs       []string `json:"alert_ids"`
+	LinkReasons    []string `json:"link_reasons"`
+	CVEs           []string `json:"cves,omitempty"`
+	Entities       []string `json:"entities,omitempty"`
+	FirstSeen      string   `json:"first_seen"`
+	LastSeen       string   `json:"last_seen"`
 }
 
 type SignalLane string
