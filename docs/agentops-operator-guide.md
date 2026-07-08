@@ -1,19 +1,17 @@
-# AgentOps Operator Guide
+# Operations Kafka Operator Guide
 
-AgentOps is the internal Kafka-backed observer domain that powers the
-Operations and Fusion surfaces. It tracks KafClaw-style group traffic on
-KafScale, writes durable state to SQLite, and exposes that state through the
-standalone kafSIEM analyst API.
+Kafka observer configuration for kafSIEM Operations and Fusion modes. The
+observer consumes KafClaw group envelopes from KafScale, writes SQLite graph
+state, and exposes data through `kafsiem-api`.
 
-The user-facing modes remain:
+Code and environment variables use the internal name `AgentOps`. User-facing
+product names are Operations and Fusion (`UI_MODE=AGENTOPS` or `HYBRID`).
 
-- `OSINT` for external intelligence workflows
-- `Operations` for internal telemetry, agent traffic, plant, fleet, and system
-  operations
-- `Fusion` for workflows that join operations data with selected OSINT context
-
-Runtime environment values remain `OSINT`, `AGENTOPS`, and `HYBRID` for
-compatibility.
+| Product mode | `UI_MODE` | Kafka |
+|--------------|-----------|-------|
+| OSINT | `OSINT` | Disabled |
+| Operations | `AGENTOPS` | Required |
+| Fusion | `HYBRID` | Required plus OSINT collector |
 
 ## Process Model
 

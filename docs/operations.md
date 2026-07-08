@@ -5,13 +5,22 @@ SPDX-License-Identifier: Apache-2.0
 
 # Operations
 
-## Runtime Model
+Docker deployment, VM setup, collector roles, OSINT discovery, and noise gate
+configuration for kafSIEM.
 
-The production stack has three containers:
+## Runtime model
 
-- `browser`: always-on headless browser bridge (Chrome DevTools websocket)
-- `collector`: the Go collector running in watch mode and writing refreshed JSON feeds into a shared Docker volume
-- `kafsiem`: the React bundle served by Caddy, reading the shared JSON volume and serving the UI plus feed files
+Docker Compose runs four application services:
+
+| Service | Role |
+|---------|------|
+| `browser` | Headless Chrome bridge (CDP websocket) for scrape sources |
+| `collector` | Go writer: OSINT JSON feeds and `agentops.db` when Operations is enabled |
+| `kafsiem-api` | Go reader: `/api/v1` analyst API from SQLite |
+| `kafsiem` | Caddy serves the React SPA and reverse-proxies `/api/*` to `kafsiem-api` |
+
+Shared volume `feed-data` holds OSINT JSON, `agentops.db`, and WAL sidecars.
+Mount `./packs` read-only for domain ontology.
 
 The collector can also run in parallel worker roles using role filters:
 
@@ -22,7 +31,10 @@ The collector can also run in parallel worker roles using role filters:
 - `api`: API lane only (non-fast + non-browser)
 - `api-ucdp`, `api-acled`, `api-gdelt`: one collector per API family
 
-The web service no longer uses nginx. Caddy serves the SPA, exposes `/alerts.json`, `/alerts-filtered.json`, `/alerts-state.json`, and `/source-health.json`, and can manage TLS automatically when you give it a real domain.
+Caddy serves the SPA, exposes `/alerts.json`, `/alerts-filtered.json`,
+`/alerts-state.json`, and `/source-health.json`, and requests TLS when
+`KAFSIEM_SITE_ADDRESS` is a real hostname. Architecture detail:
+[architecture.md](architecture.md).
 
 ## Local Compose
 
@@ -44,7 +56,7 @@ Default local behavior:
 - HTTP on `http://localhost:8080`
 - HTTPS listener mapped to `https://localhost:8443` but not used unless `KAFSIEM_SITE_ADDRESS` is changed to a hostname that enables TLS
 - The collector initializes empty JSON outputs on a fresh shared feed volume, then replaces them with live collector output on the first successful run
-- Advanced tuning variables are documented in [docs/advanced-config.md](/Users/alo/Development/scalytics/kafSIEM/docs/advanced-config.md).
+- Advanced tuning: [advanced-config.md](advanced-config.md)
 
 ## Guided Installer Profiles
 
@@ -106,7 +118,8 @@ With a real domain in `KAFSIEM_SITE_ADDRESS`, Caddy will request and renew TLS c
 
 ## VM Service With systemd
 
-Use the checked-in unit at [docs/kafsiem.service](/Users/alo/Development/scalytics/kafSIEM/docs/kafsiem.service) so the stack comes back after host reboots:
+Use the checked-in unit at [kafsiem.service](kafsiem.service) so the stack
+comes back after host reboots:
 
 Install it on the VM:
 
@@ -120,7 +133,8 @@ If the VM only has `docker-compose`, adjust the unit commands accordingly.
 
 ## Browser Watchdog
 
-Run [scripts/browser_watchdog.sh](/Users/alo/Development/scalytics/kafSIEM/scripts/browser_watchdog.sh) on the host every minute. It restarts `kafsiem-browser` when either:
+Run [scripts/browser_watchdog.sh](../scripts/browser_watchdog.sh) on the host
+every minute. It restarts `kafsiem-browser` when either:
 
 - browser health is not healthy/running
 - collector logs show repeated remote websocket fallback warnings
@@ -144,10 +158,10 @@ sudo systemctl enable --now kafsiem-browser-watchdog.timer
 
 - The collector writes feed output into the `feed-data` volume shared with the web container.
 - The UI footer freshness line is derived from `source-health.json.generated_at` and shows the age of the current collector snapshot. It is normal below 20 minutes, warning from 20 to 60 minutes, and stale above 60 minutes.
-- Discovery intake lives in [registry/source_candidates.json](/Users/alo/Development/scalytics/kafSIEM/registry/source_candidates.json).
-- Dead sources are written to the terminal DLQ in `source_dead_letter.json` and are not crawled again.
-- LLM-assisted source vetting is documented in [docs/source-vetting.md](/Users/alo/Development/scalytics/kafSIEM/docs/source-vetting.md).
-- ACLED conflict data integration is documented in [docs/acled.md](/Users/alo/Development/scalytics/kafSIEM/docs/acled.md).
+- Discovery intake: [registry/source_candidates.json](../registry/source_candidates.json)
+- Dead sources go to `source_dead_letter.json` and are not crawled again.
+- Source vetting: [source-vetting.md](source-vetting.md)
+- ACLED integration: [acled.md](acled.md)
 - TLS state and certificates persist in the `caddy-data` volume.
 - Caddy runtime state persists in the `caddy-config` volume.
 - Scheduled refreshes, Docker runtime, and local collection commands all run through the Go collector.
@@ -166,10 +180,14 @@ Discovery requires LLM source vetting to promote candidates into the live regist
 
 ### How it works
 
-1. **Seeding** — Curated sovereign official-statement seeds (head of state/government channels), FIRST.org CSIRT teams, Wikidata police/humanitarian/government orgs, and gap analysis (missing country+category combinations) generate candidate URLs.
-2. **Probing** — Each candidate URL is checked for RSS/Atom feeds or stable HTML listing pages.
-3. **Vetting** — If `SOURCE_VETTING_ENABLED=true`, discovered feeds are sampled and sent to the configured LLM for approval. The LLM scores source quality, operational relevance, and assigns mission tags.
-4. **Promotion** — Approved sources are written into `sources.db` and picked up by the collector on its next sweep.
+1. **Seeding**: curated sovereign official-statement seeds, FIRST.org CSIRT teams,
+   Wikidata orgs, and gap analysis generate candidate URLs.
+2. **Probing**: each candidate URL is checked for RSS/Atom feeds or HTML listing
+   pages.
+3. **Vetting**: when `SOURCE_VETTING_ENABLED=true`, sample items go to the LLM
+   for quality and relevance scoring.
+4. **Promotion**: approved sources are written to `sources.db` for the next
+   collector sweep.
 
 For sovereign official-statement seeds, stricter promotion thresholds are applied only when category is `legislative`.
 
@@ -193,7 +211,10 @@ SOURCE_VETTING_MODEL=grok-4-1-fast
 
 ### Token cost
 
-Discovery vetting is lightweight — each candidate gets a single short prompt with up to 6 sample items. A full discovery cycle with 300+ candidates typically costs under 100k tokens. The cycle runs once per collection interval (default 15 minutes) but most candidates are already deduplicated or filtered by deterministic hygiene before the LLM is called.
+Discovery vetting is lightweight: one short prompt per candidate with up to six
+sample items. A full cycle with 300+ candidates typically costs under 100k
+tokens. The cycle runs each collection interval (default 15 minutes). Most
+candidates are deduplicated before the LLM runs.
 
 To save tokens, disable vetting (`SOURCE_VETTING_ENABLED=false`). Discovery will still run and queue candidates, but they won't be promoted until vetting is re-enabled.
 

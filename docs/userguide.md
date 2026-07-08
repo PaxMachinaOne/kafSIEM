@@ -1,4 +1,8 @@
-# kafSIEM User Guide
+# kafSIEM OSINT User Guide
+
+OSINT mode (`UI_MODE=OSINT`): alert categories, sources, globe view, search,
+and noise controls. For Operations and Fusion modes see
+[architecture.md](architecture.md) and [agentops-operator-guide.md](agentops-operator-guide.md).
 
 ## Alert Categories
 
@@ -22,7 +26,8 @@ Active missing person cases including children, endangered adults, and unidentif
 **Sources:** Interpol Yellow Notices (newest 160 per run), NCMEC, NamUs, BKA Vermisste, national police missing person feeds.
 
 ### Public Appeal
-Police appeals for information from the public — witness calls, identification requests, crime tip lines, and community safety notices.
+Police appeals for information from the public: witness calls, identification
+requests, crime tip lines, and community safety notices.
 
 **Sources:** Metropolitan Police, Police.uk, Polizei.de state feeds, Gendarmerie, FBI tips, and regional law enforcement across 30+ countries.
 
@@ -52,7 +57,8 @@ Armed conflict tracking, ceasefire violations, military operations, and peace pr
 **Sources:** ACLED (Armed Conflict Location & Event Data), UN Peace & Security, SIPRI conflict data, OSCE monitoring missions, peacekeeping operation feeds.
 
 ### Humanitarian Security
-Security incidents affecting humanitarian operations — aid worker safety, access restrictions, and operational environment assessments in crisis zones.
+Security incidents affecting humanitarian operations: aid worker safety, access
+restrictions, and operational environment assessments in crisis zones.
 
 **Sources:** ICRC field operations, ICRC IHL updates, UN OCHA, UNHCR, and humanitarian coordination feeds.
 
@@ -145,7 +151,9 @@ The default list filters out sports (football, basketball, cricket, FIFA, UEFA, 
 
 ### Customising the list
 
-Edit `registry/stop_words.json` directly — it is a simple JSON file with a `stop_words` array of case-insensitive substring terms. Restart the collector to pick up changes.
+Edit `registry/stop_words.json` directly. It is a JSON file with a `stop_words`
+array of case-insensitive substring terms. Restart the collector to pick up
+changes.
 
 ```json
 {

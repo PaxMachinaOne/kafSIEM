@@ -1,7 +1,10 @@
 # API Clients
 
-The kafSIEM analyst API is served by `cmd/kafsiem-api` and versioned under
-`/api/v1`. The generated OpenAPI contract is [api/openapi.yaml](../api/openapi.yaml).
+kafSIEM analyst API clients for the entity graph, flows, search, maps, and
+ontology endpoints.
+
+Service: `cmd/kafsiem-api`. Base path: `/api/v1`. OpenAPI contract:
+[api/openapi.yaml](../api/openapi.yaml). Error shapes: [agentops-api-errors.md](agentops-api-errors.md).
 
 Regenerate API artifacts after changing the source contract:
 
