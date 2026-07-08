@@ -195,10 +195,11 @@ Detail responses include `timeline`, `geo`, and `graph` for analyst overview.
 ### Local demo without Docker
 
 ```bash
-npm install
-npm run demo:osint
-# or: npm run dev and open http://localhost:5173/?demo=osint
+make demo-osint
 ```
+
+Opens the OSINT console at `/?demo=osint` with bundled fixtures. For a live
+collector stack instead, use `make dev-start` and open `http://localhost:8080`.
 
 Demo fixtures include **cyber** CVE and Dridex malware clusters, an **ICS/energy**
 sector-targeting cluster, and a **terror** Al-Shabaab cross-domain cluster. Click

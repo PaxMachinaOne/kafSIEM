@@ -77,7 +77,7 @@ export function IncidentRelationsPanel({ onSelectPrimaryAlert }: Props) {
           <div className="rounded-lg border border-siem-border bg-black/20 px-3 py-4 text-sm text-siem-muted">
             {isAvailable
               ? "No corroborated attack clusters in the current index. Clusters form when cyber, terror, or conflict alerts share CVEs, actors, or geography across sources."
-              : "Incidents API unavailable. Start the collector stack or use demo mode (?demo=osint)."}
+              : "Incidents API unavailable. Run make dev-start or make demo-osint."}
           </div>
         ) : (
           visible.map((incident) => (

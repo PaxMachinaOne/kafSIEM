@@ -293,7 +293,8 @@ Endpoints (proxied via `kafsiem-api` legacy proxy):
 | **Globe** | `GlobeView` | Tooltip on incident anchors |
 
 Frontend hooks: `useIncidents`, `useIncidentDetail`. Demo fixtures:
-`public/demo/alerts.json`, `public/demo/incidents.json` (`?demo=osint`).
+`public/demo/alerts.json`, `public/demo/incidents.json` (`make demo-osint` /
+`?demo=osint`).
 
 ### Open-data relation anchors
 

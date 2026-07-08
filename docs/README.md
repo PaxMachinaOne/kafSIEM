@@ -9,6 +9,7 @@ and serves analyst workflows through a web UI and OpenAPI.
 | Goal | Document |
 |------|----------|
 | Product overview and quick start | [README](../README.md) |
+| Local dev targets (`make help`) | [Makefile](../Makefile) |
 | System design and package layout | [architecture.md](architecture.md) |
 | Docker, VM, installer, collector roles | [operations.md](operations.md) |
 | Kafka observer, volumes, backup, replay | [agentops-operator-guide.md](agentops-operator-guide.md) |

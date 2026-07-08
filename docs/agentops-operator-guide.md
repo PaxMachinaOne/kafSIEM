@@ -160,22 +160,15 @@ exercise the same queue, ontology, graph, map, provenance, and Fusion-context
 surfaces without requiring Kafka or SQLite:
 
 ```bash
-npm run demo:ontology
-npm run demo:fusion
+make demo-osint      # public OSINT relations console (fixtures)
+make demo-ontology   # Operations ontology desk
+make demo-fusion     # Fusion desk
 ```
 
-The demo URLs are `/?demo=osint` for the public OSINT relations console,
-`/?demo=ontology` for Operations, and `/?demo=fusion` for
-Fusion. They do not restore the discontinued legacy dashboard.
+These map to `/?demo=osint`, `/?demo=ontology`, and `/?demo=fusion`. They do
+not restore the discontinued legacy dashboard.
 
-For live local development against collector and API output:
-
-```bash
-npm run fetch:alerts:watch
-npm run dev
-```
-
-For the full Docker development stack:
+For the full Docker development stack (live collector + API + UI):
 
 ```bash
 make dev-start
