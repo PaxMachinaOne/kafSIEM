@@ -51,5 +51,8 @@ fi
 # This ensures new feeds (FBI API, travel warnings, etc.) from image
 # updates are picked up without manual intervention.
 kafsiem-collector --source-db /data/sources.db --curated-seed /app/registry/source_registry.json --source-db-merge-registry
+if [ -f /app/registry/curated_agencies.seed.json ]; then
+  kafsiem-collector --source-db /data/sources.db --curated-seed /app/registry/curated_agencies.seed.json --source-db-merge-registry
+fi
 
 exec kafsiem-collector "$@"
