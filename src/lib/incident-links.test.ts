@@ -56,6 +56,11 @@ describe("incident-links", () => {
     expect(isIncidentAnchor({ ...alert("solo", "Solo"), incident: undefined })).toBe(false);
   });
 
+  it("returns empty peers when related ids are absent from feed", () => {
+    const primary = alert("a1", "Primary");
+    expect(resolveIncidentPeers(primary, [primary])).toEqual([]);
+  });
+
   it("builds a compact summary line", () => {
     const line = incidentSummaryLine({
       incident_id: "inc-abc",

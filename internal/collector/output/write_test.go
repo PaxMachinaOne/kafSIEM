@@ -4,6 +4,7 @@
 package output
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -37,5 +38,72 @@ func TestWriteOutputs(t *testing.T) {
 	}
 	if _, err := os.Stat(cfg.ZoneBriefingsOutputPath); err != nil {
 		t.Fatalf("expected output file %s: %v", cfg.ZoneBriefingsOutputPath, err)
+	}
+}
+
+func TestWriteRegressionEmbedsIncidentArtifacts(t *testing.T) {
+	dir := t.TempDir()
+	cfg := config.Default()
+	cfg.OutputPath = filepath.Join(dir, "alerts.json")
+	cfg.FilteredOutputPath = filepath.Join(dir, "filtered.json")
+	cfg.StateOutputPath = filepath.Join(dir, "state.json")
+	cfg.SourceHealthOutputPath = filepath.Join(dir, "health.json")
+
+	active := []model.Alert{
+		{
+			AlertID:   "a1",
+			SourceID:  "src-a",
+			Title:     "Critical patch for CVE-2026-9001 in industrial gateways",
+			Category:  "cyber_advisory",
+			Severity:  "critical",
+			FirstSeen: "2026-04-10T10:00:00Z",
+			LastSeen:  "2026-04-10T10:00:00Z",
+		},
+		{
+			AlertID:   "a2",
+			SourceID:  "src-b",
+			Title:     "CERT warns operators about CVE-2026-9001 exploitation",
+			Category:  "cyber_advisory",
+			Severity:  "high",
+			FirstSeen: "2026-04-10T11:00:00Z",
+			LastSeen:  "2026-04-10T11:00:00Z",
+		},
+	}
+	if err := Write(cfg, active, nil, active, nil, model.DuplicateAudit{}, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	incidentsPath := incidentsOutputPath(cfg.OutputPath)
+	rawIncidents, err := os.ReadFile(incidentsPath)
+	if err != nil {
+		t.Fatalf("read incidents.json: %v", err)
+	}
+	var incidents []model.IncidentSummary
+	if err := json.Unmarshal(rawIncidents, &incidents); err != nil {
+		t.Fatal(err)
+	}
+	if len(incidents) != 1 {
+		t.Fatalf("expected one incident index row, got %d", len(incidents))
+	}
+
+	rawAlerts, err := os.ReadFile(cfg.OutputPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var written []model.Alert
+	if err := json.Unmarshal(rawAlerts, &written); err != nil {
+		t.Fatal(err)
+	}
+	annotated := 0
+	for _, alert := range written {
+		if alert.Incident != nil {
+			annotated++
+			if len(alert.Incident.RelatedAlertIDs) != 1 {
+				t.Fatalf("expected one related alert id, got %#v", alert.Incident.RelatedAlertIDs)
+			}
+		}
+	}
+	if annotated != 1 {
+		t.Fatalf("expected one annotated active alert, got %d", annotated)
 	}
 }

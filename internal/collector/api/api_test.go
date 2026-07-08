@@ -130,6 +130,13 @@ func TestOSINTIncidentsAPI(t *testing.T) {
 	if detailRec.Code != http.StatusOK {
 		t.Fatalf("detail status=%d body=%s", detailRec.Code, detailRec.Body.String())
 	}
+
+	missingReq := httptest.NewRequest("GET", "/api/osint/incidents/does-not-exist", nil)
+	missingRec := httptest.NewRecorder()
+	handler.ServeHTTP(missingRec, missingReq)
+	if missingRec.Code != http.StatusNotFound {
+		t.Fatalf("missing status=%d body=%s", missingRec.Code, missingRec.Body.String())
+	}
 }
 
 func TestSearchReturnsRankedResults(t *testing.T) {
