@@ -496,6 +496,8 @@ export default function App() {
           {leftPanel === "relations" ? (
             <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-siem-muted">Loading relations...</div>}>
               <IncidentRelationsPanel
+                alerts={alerts}
+                historicalAlerts={stateAlerts}
                 onSelectIncident={handleIncidentSelect}
               />
             </Suspense>

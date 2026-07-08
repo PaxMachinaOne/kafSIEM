@@ -10,15 +10,29 @@ import {
   type AttackType,
 } from "@/lib/attack-types";
 import { formatLinkReason, geographyLabel, isGeographyReason } from "@/lib/incident-links";
+import { detectSpikes, type ActivitySpike } from "@/lib/activity-spikes";
+import type { Alert } from "@/types/alert";
 import type { IncidentSummary } from "@/types/incident";
 
 interface Props {
+  alerts: Alert[];
+  historicalAlerts: Alert[];
   onSelectIncident: (incident: IncidentSummary) => void;
 }
 
-export function IncidentRelationsPanel({ onSelectIncident }: Props) {
+const SPIKE_RECENCY_MS = 48 * 60 * 60 * 1000;
+
+export function IncidentRelationsPanel({ alerts, historicalAlerts, onSelectIncident }: Props) {
   const { incidents, isLoading, isAvailable } = useIncidents(100);
   const [attackFilter, setAttackFilter] = useState<AttackType | "all">("all");
+
+  const spikesByCountry = useMemo(() => {
+    const map = new Map<string, ActivitySpike>();
+    for (const spike of detectSpikes([...alerts, ...historicalAlerts])) {
+      map.set(spike.countryCode, spike);
+    }
+    return map;
+  }, [alerts, historicalAlerts]);
 
   const grouped = useMemo(() => groupIncidentsByAttackType(incidents), [incidents]);
   const visible = useMemo(() => {
@@ -81,7 +95,12 @@ export function IncidentRelationsPanel({ onSelectIncident }: Props) {
           </div>
         ) : (
           visible.map((incident) => (
-            <IncidentRelationCard key={incident.incident_id} incident={incident} onSelectIncident={onSelectIncident} />
+            <IncidentRelationCard
+              key={incident.incident_id}
+              incident={incident}
+              spike={findIncidentSpike(incident, spikesByCountry)}
+              onSelectIncident={onSelectIncident}
+            />
           ))
         )}
       </div>
@@ -89,11 +108,30 @@ export function IncidentRelationsPanel({ onSelectIncident }: Props) {
   );
 }
 
+// A spike only corroborates a cluster that is itself still moving: the
+// incident's event geography must overlap a spiking country and the cluster
+// must have been active within the spike-detection horizon.
+function findIncidentSpike(
+  incident: IncidentSummary,
+  spikesByCountry: Map<string, ActivitySpike>,
+): ActivitySpike | null {
+  if (!incident.countries?.length) return null;
+  const lastSeen = Date.parse(incident.last_seen);
+  if (Number.isNaN(lastSeen) || Date.now() - lastSeen > SPIKE_RECENCY_MS) return null;
+  for (const country of incident.countries) {
+    const spike = spikesByCountry.get(country.toUpperCase());
+    if (spike) return spike;
+  }
+  return null;
+}
+
 function IncidentRelationCard({
   incident,
+  spike,
   onSelectIncident,
 }: {
   incident: IncidentSummary;
+  spike: ActivitySpike | null;
   onSelectIncident: (incident: IncidentSummary) => void;
 }) {
   const attackType = normalizeAttackType(incident.attack_type);
@@ -122,6 +160,17 @@ function IncidentRelationCard({
             <span className="rounded-full border border-siem-border px-2 py-0.5 text-4xs uppercase tracking-[0.14em] text-siem-muted">
               {countLabel}
             </span>
+            {spike ? (
+              <span
+                className={`rounded-full border px-2 py-0.5 text-4xs uppercase tracking-[0.14em] ${
+                  spike.level === "surge"
+                    ? "border-rose-400/45 bg-rose-400/12 text-rose-200"
+                    : "border-amber-400/45 bg-amber-400/12 text-amber-200"
+                }`}
+              >
+                Reporting spike ×{spike.ratio} ({spike.countryCode})
+              </span>
+            ) : null}
           </div>
           <div className="mt-2 text-sm font-medium text-siem-text line-clamp-2">{incident.title}</div>
           <div className="mt-1 font-mono text-xxs text-siem-muted truncate">{incident.incident_id}</div>

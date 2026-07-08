@@ -32,7 +32,8 @@ export function detectSpikes(alerts: Alert[]): ActivitySpike[] {
   >();
 
   for (const alert of alerts) {
-    const cc = alert.source.country_code;
+    // Prefer where the event happened; publisher country is only a fallback.
+    const cc = alert.event_country_code || alert.source.country_code;
     if (!cc || cc === "INT") continue;
 
     const t = new Date(alert.first_seen).getTime();
@@ -44,7 +45,7 @@ export function detectSpikes(alerts: Alert[]): ActivitySpike[] {
     let bucket = buckets.get(cc);
     if (!bucket) {
       bucket = {
-        country: alert.source.country,
+        country: alert.event_country || alert.source.country,
         region: alert.source.region,
         recent: 0,
         total: 0,
