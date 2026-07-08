@@ -1,5 +1,9 @@
 import type { Alert, IncidentLink } from "@/types/alert";
 
+export function isIncidentAnchor(alert: Alert): boolean {
+  return (alert.incident?.member_count ?? 0) >= 2;
+}
+
 export function resolveIncidentPeers(alert: Alert, alerts: Alert[]): Alert[] {
   const link = alert.incident;
   if (!link?.related_alert_ids?.length) {

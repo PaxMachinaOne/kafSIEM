@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatLinkReason, incidentSummaryLine, resolveIncidentPeers } from "@/lib/incident-links";
+import { formatLinkReason, incidentSummaryLine, isIncidentAnchor, resolveIncidentPeers } from "@/lib/incident-links";
 import type { Alert } from "@/types/alert";
 
 function alert(id: string, title: string): Alert {
@@ -49,6 +49,11 @@ describe("incident-links", () => {
   it("formats link reasons for display", () => {
     expect(formatLinkReason("shared_cve:CVE-2026-1234")).toContain("CVE-2026-1234");
     expect(formatLinkReason("shared_entity:Islamic State")).toContain("Islamic State");
+  });
+
+  it("detects incident anchors", () => {
+    expect(isIncidentAnchor(alert("a1", "Primary"))).toBe(true);
+    expect(isIncidentAnchor({ ...alert("solo", "Solo"), incident: undefined })).toBe(false);
   });
 
   it("builds a compact summary line", () => {

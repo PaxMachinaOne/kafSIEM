@@ -10,6 +10,7 @@ import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import type { Alert } from "@/types/alert";
+import { isIncidentAnchor } from "@/lib/incident-links";
 import { alertMatchesRegionFilter } from "@/lib/regions";
 import { severityHex, textHex } from "@/lib/theme";
 import { loadOverlayDefs, loadOverlay, type OverlayDef, type OverlayId } from "@/lib/map-overlays";
@@ -649,18 +650,22 @@ export function GlobeView({
       // Skip alerts with no resolved location (0,0).
       if (alert.lat === 0 && alert.lng === 0) continue;
       const selected = alert.alert_id === selectedId;
+      const linked = isIncidentAnchor(alert);
       const text = textHex();
       const marker = L.circleMarker([alert.lat, alert.lng], {
 
-        radius: selected ? 11 : 7,
+        radius: selected ? (linked ? 12 : 11) : linked ? 8 : 7,
         fillColor: severityHex(alert.severity),
-        color: selected ? text : `${text}59`,
-        weight: selected ? 2.5 : 1,
+        color: linked ? "#f8fafc" : selected ? text : `${text}59`,
+        weight: linked ? (selected ? 3 : 2) : selected ? 2.5 : 1,
         fillOpacity: 0.85,
       });
 
+      const incidentNote = linked
+        ? `<br/><span style="opacity:0.85">Linked incident · ${alert.incident?.member_count ?? 0} alerts</span>`
+        : "";
       marker.bindTooltip(
-        `<strong>${alert.source.authority_name}</strong><br/>${alert.title.slice(0, 80)}`,
+        `<strong>${alert.source.authority_name}</strong><br/>${alert.title.slice(0, 80)}${incidentNote}`,
         { className: "siem-tooltip", direction: "top", offset: L.point(0, -6) },
       );
 
