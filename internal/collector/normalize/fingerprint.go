@@ -95,6 +95,9 @@ func (d *entityDict) extractEntities(tokens []string) (entities []string, remain
 	seen := map[string]bool{}
 
 	for _, phrase := range d.phrases {
+		if !usableEntityPhrase(phrase) {
+			continue
+		}
 		pLen := len(phrase.tokens)
 		for i := 0; i <= len(tokens)-pLen; i++ {
 			if consumed[i] {
@@ -125,6 +128,13 @@ func (d *entityDict) extractEntities(tokens []string) (entities []string, remain
 		}
 	}
 	return entities, remainder
+}
+
+func usableEntityPhrase(phrase entityPhrase) bool {
+	if len(phrase.tokens) == 1 && len(phrase.tokens[0]) < 3 {
+		return false
+	}
+	return len(phrase.tokens) > 0
 }
 
 // ---------- tokenization & stopword filtering ----------

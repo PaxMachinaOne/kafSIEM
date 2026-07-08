@@ -17,20 +17,41 @@ func MatchActorInText(text string) string {
 	if dict == nil {
 		return ""
 	}
-	lowered := strings.ToLower(text)
+	tokens := tokenize(text)
 	best := ""
 	bestLen := 0
 	for _, phrase := range dict.phrases {
-		joined := strings.Join(phrase.tokens, " ")
-		if joined == "" {
+		if !usableEntityPhrase(phrase) {
 			continue
 		}
-		if strings.Contains(lowered, joined) && len(joined) > bestLen {
+		if !containsEntityPhrase(tokens, phrase.tokens) {
+			continue
+		}
+		if len(phrase.tokens) > bestLen {
 			best = phrase.canonical
-			bestLen = len(joined)
+			bestLen = len(phrase.tokens)
 		}
 	}
 	return best
+}
+
+func containsEntityPhrase(tokens []string, phrase []string) bool {
+	if len(phrase) == 0 || len(tokens) < len(phrase) {
+		return false
+	}
+	for i := 0; i <= len(tokens)-len(phrase); i++ {
+		matched := true
+		for j := range phrase {
+			if tokens[i+j] != phrase[j] {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return true
+		}
+	}
+	return false
 }
 
 func NVDAlert(ctx Context, meta model.RegistrySource, item parse.NVDItem) *model.Alert {

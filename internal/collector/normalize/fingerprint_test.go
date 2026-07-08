@@ -33,16 +33,13 @@ func TestRemoveStopwords(t *testing.T) {
 	}
 }
 
-func TestEntityExtraction_IS(t *testing.T) {
-	// The critical "IS" problem: "IS" should match Islamic State, not be
-	// dropped as a stopword.
+func TestEntityExtractionIslamicStateAliases(t *testing.T) {
 	dict := &entityDict{
 		phrases: []entityPhrase{
 			{tokens: []string{"islamic", "state"}, canonical: "Islamic State"},
 			{tokens: []string{"isis"}, canonical: "Islamic State"},
 			{tokens: []string{"isil"}, canonical: "Islamic State"},
 			{tokens: []string{"daesh"}, canonical: "Islamic State"},
-			{tokens: []string{"is"}, canonical: "Islamic State"},
 		},
 	}
 
@@ -52,7 +49,6 @@ func TestEntityExtraction_IS(t *testing.T) {
 		wantEntity string
 	}{
 		{"ISIS alias", "isis claims attack in somalia", "Islamic State"},
-		{"IS alias", "the is claimed responsibility for bombing", "Islamic State"},
 		{"ISIL alias", "isil fighters advance in syria", "Islamic State"},
 		{"Daesh alias", "coalition strikes against daesh positions", "Islamic State"},
 		{"Full name", "islamic state militants attack village", "Islamic State"},
@@ -73,6 +69,37 @@ func TestEntityExtraction_IS(t *testing.T) {
 				t.Errorf("entity %q not found in %v (input: %q)", tt.wantEntity, entities, tt.input)
 			}
 		})
+	}
+}
+
+func TestEntityExtractionIgnoresShortGenericAliases(t *testing.T) {
+	dict := &entityDict{
+		phrases: []entityPhrase{
+			{tokens: []string{"is"}, canonical: "Islamic State"},
+			{tokens: []string{"aq"}, canonical: "Al-Qaeda"},
+		},
+	}
+
+	for _, input := range []string{
+		"the ceasefire is over",
+		"iraq says talks continue",
+		"the report is still developing",
+	} {
+		t.Run(input, func(t *testing.T) {
+			entities, _ := dict.extractEntities(tokenize(input))
+			if len(entities) != 0 {
+				t.Fatalf("expected no short-alias entity match, got %v", entities)
+			}
+		})
+	}
+}
+
+func TestMatchActorInTextIgnoresGenericIs(t *testing.T) {
+	if got := MatchActorInText("Trump says Iran ceasefire is over"); got != "" {
+		t.Fatalf("expected no actor match for generic text, got %q", got)
+	}
+	if got := MatchActorInText("ISIS claimed responsibility for the attack"); got != "Islamic State" {
+		t.Fatalf("expected ISIS to match Islamic State, got %q", got)
 	}
 }
 
@@ -235,8 +262,7 @@ func TestCrossSourceDedup_SameSource(t *testing.T) {
 	}
 }
 
-func TestContentFingerprint_ISvsis(t *testing.T) {
-	// Verify "IS" (Islamic State) produces entity token, not dropped as stopword.
+func TestContentFingerprintIgnoresGenericIsAlias(t *testing.T) {
 	dict := &entityDict{
 		phrases: []entityPhrase{
 			{tokens: []string{"islamic", "state"}, canonical: "Islamic State"},
@@ -245,24 +271,14 @@ func TestContentFingerprint_ISvsis(t *testing.T) {
 	}
 
 	alert := model.Alert{
-		Title:    "The IS claimed attack in Raqqa",
+		Title:    "The ceasefire is over after talks",
 		Category: "terrorism",
 	}
 
 	fp := contentFingerprint(alert, dict)
-	hasEntity := false
-	for _, t := range fp {
-		if t == "entity:Islamic State" {
-			hasEntity = true
+	for _, token := range fp {
+		if token == "entity:Islamic State" {
+			t.Fatalf("generic is alias should not produce Islamic State entity, got %v", fp)
 		}
-		// "is" should NOT appear as a standalone token.
-		if t == "is" {
-			t2 := t
-			_ = t2
-			// This would mean IS leaked through as a regular word.
-		}
-	}
-	if !hasEntity {
-		t.Errorf("fingerprint should contain entity:Islamic State, got %v", fp)
 	}
 }
