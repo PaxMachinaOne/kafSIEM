@@ -11,6 +11,7 @@ import (
 
 	"github.com/scalytics/kafSIEM/internal/collector/config"
 	"github.com/scalytics/kafSIEM/internal/collector/model"
+	"github.com/scalytics/kafSIEM/internal/collector/normalize"
 )
 
 func TestWriteOutputs(t *testing.T) {
@@ -23,7 +24,7 @@ func TestWriteOutputs(t *testing.T) {
 	cfg.ZoneBriefingsOutputPath = filepath.Join(dir, "zone-briefings.json")
 	cfg.ReplacementQueuePath = filepath.Join(dir, "replacement.json")
 
-	err := Write(cfg, []model.Alert{{AlertID: "a"}}, []model.Alert{{AlertID: "b"}}, []model.Alert{{AlertID: "c"}}, []model.SourceHealthEntry{{SourceID: "s", Status: "ok"}}, model.DuplicateAudit{}, nil)
+	err := Write(cfg, []model.Alert{{AlertID: "a"}}, []model.Alert{{AlertID: "b"}}, []model.Alert{{AlertID: "c"}}, []model.SourceHealthEntry{{SourceID: "s", Status: "ok"}}, model.DuplicateAudit{}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +70,8 @@ func TestWriteRegressionEmbedsIncidentArtifacts(t *testing.T) {
 			LastSeen:  "2026-04-10T11:00:00Z",
 		},
 	}
-	if err := Write(cfg, active, nil, active, nil, model.DuplicateAudit{}, nil); err != nil {
+	finalized, incidents, _ := normalize.FinalizeActiveAlerts(active)
+	if err := Write(cfg, finalized, nil, finalized, nil, model.DuplicateAudit{}, nil, incidents); err != nil {
 		t.Fatal(err)
 	}
 
@@ -78,12 +80,12 @@ func TestWriteRegressionEmbedsIncidentArtifacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read incidents.json: %v", err)
 	}
-	var incidents []model.IncidentSummary
-	if err := json.Unmarshal(rawIncidents, &incidents); err != nil {
+	var writtenIncidents []model.IncidentSummary
+	if err := json.Unmarshal(rawIncidents, &writtenIncidents); err != nil {
 		t.Fatal(err)
 	}
-	if len(incidents) != 1 {
-		t.Fatalf("expected one incident index row, got %d", len(incidents))
+	if len(writtenIncidents) != 1 {
+		t.Fatalf("expected one incident index row, got %d", len(writtenIncidents))
 	}
 
 	rawAlerts, err := os.ReadFile(cfg.OutputPath)

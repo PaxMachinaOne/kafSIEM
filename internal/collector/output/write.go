@@ -12,25 +12,23 @@ import (
 
 	"github.com/scalytics/kafSIEM/internal/collector/config"
 	"github.com/scalytics/kafSIEM/internal/collector/model"
-	"github.com/scalytics/kafSIEM/internal/collector/normalize"
 )
 
-func Write(cfg config.Config, active []model.Alert, filtered []model.Alert, state []model.Alert, sourceHealth []model.SourceHealthEntry, duplicateAudit model.DuplicateAudit, replacementQueue []model.SourceReplacementCandidate) error {
-	return WriteWithTotal(cfg, active, filtered, state, sourceHealth, duplicateAudit, replacementQueue, 0)
+func Write(cfg config.Config, active []model.Alert, filtered []model.Alert, state []model.Alert, sourceHealth []model.SourceHealthEntry, duplicateAudit model.DuplicateAudit, replacementQueue []model.SourceReplacementCandidate, incidents []model.IncidentSummary) error {
+	return WriteWithTotal(cfg, active, filtered, state, sourceHealth, duplicateAudit, replacementQueue, 0, incidents)
 }
 
 // WriteWithTotal is like Write but accepts an explicit totalRegistrySources
 // override. When > 0, total_sources in source-health.json reflects the full
 // registry count rather than len(sourceHealth) — keeping the UI stable during
 // progress snapshots mid-sweep.
-func WriteWithTotal(cfg config.Config, active []model.Alert, filtered []model.Alert, state []model.Alert, sourceHealth []model.SourceHealthEntry, duplicateAudit model.DuplicateAudit, replacementQueue []model.SourceReplacementCandidate, totalRegistrySources int) error {
+func WriteWithTotal(cfg config.Config, active []model.Alert, filtered []model.Alert, state []model.Alert, sourceHealth []model.SourceHealthEntry, duplicateAudit model.DuplicateAudit, replacementQueue []model.SourceReplacementCandidate, totalRegistrySources int, incidents []model.IncidentSummary) error {
 	paths := []string{cfg.OutputPath, cfg.FilteredOutputPath, cfg.StateOutputPath, cfg.SourceHealthOutputPath}
 	for _, path := range paths {
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			return err
 		}
 	}
-	active, incidents := normalize.ApplyIncidentLinks(active)
 	if err := writeJSON(cfg.OutputPath, active); err != nil {
 		return err
 	}

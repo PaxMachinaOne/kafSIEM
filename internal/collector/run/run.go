@@ -605,10 +605,12 @@ func (r Runner) runOnce(ctx context.Context, cfg config.Config) error {
 		}
 	}
 
-	if err := output.Write(cfg, currentActive, currentFiltered, fullState, sourceHealth, duplicateAudit, replacementQueue); err != nil {
+	currentActive, incidents, crossSuppressed := normalize.FinalizeActiveAlerts(currentActive)
+	duplicateAudit.SuppressedCrossSourceDuplicates += crossSuppressed
+	if err := output.Write(cfg, currentActive, currentFiltered, fullState, sourceHealth, duplicateAudit, replacementQueue, incidents); err != nil {
 		return err
 	}
-	if err := saveOSINTIncidents(ctx, cfg, currentActive); err != nil {
+	if err := saveOSINTIncidents(ctx, cfg, incidents); err != nil {
 		fmt.Fprintf(r.stderr, "WARN osint incidents save: %v\n", err)
 	}
 	if collectorRole(cfg) == "all" {
@@ -733,7 +735,9 @@ func (r Runner) writeProgressSnapshot(cfg config.Config, freshAlerts []model.Ale
 	deduped, duplicateAudit := normalize.Deduplicate(merged)
 	deduped = normalize.ApplySignalLanes(cfg, deduped)
 	active, filtered := normalize.FilterActive(cfg, deduped)
-	if err := output.WriteWithTotal(cfg, active, filtered, active, mergedHealth, duplicateAudit, nil, totalRegistrySources); err != nil {
+	active, incidents, crossSuppressed := normalize.FinalizeActiveAlerts(active)
+	duplicateAudit.SuppressedCrossSourceDuplicates += crossSuppressed
+	if err := output.WriteWithTotal(cfg, active, filtered, active, mergedHealth, duplicateAudit, nil, totalRegistrySources, incidents); err != nil {
 		fmt.Fprintf(r.stderr, "WARN progress snapshot write failed: %v\n", err)
 		return
 	}
@@ -6020,11 +6024,10 @@ func saveAlertState(ctx context.Context, cfg config.Config, alerts []model.Alert
 	return nil
 }
 
-func saveOSINTIncidents(ctx context.Context, cfg config.Config, active []model.Alert) error {
+func saveOSINTIncidents(ctx context.Context, cfg config.Config, incidents []model.IncidentSummary) error {
 	if !isSQLiteRegistryPath(cfg.RegistryPath) {
 		return nil
 	}
-	_, incidents := normalize.ApplyIncidentLinks(active)
 	db, err := sourcedb.Open(cfg.RegistryPath)
 	if err != nil {
 		return fmt.Errorf("open source DB for incident save: %w", err)
@@ -6088,10 +6091,12 @@ func (r Runner) runMergeOnly(ctx context.Context, cfg config.Config, sources []m
 	}
 	previousSourceHealth := loadPreviousSourceHealth(cfg)
 	replacementQueue := state.ReadDLQ(cfg.ReplacementQueuePath).Entries()
-	if err := output.Write(cfg, currentActive, currentFiltered, fullState, previousSourceHealth, duplicateAudit, replacementQueue); err != nil {
+	currentActive, incidents, crossSuppressed := normalize.FinalizeActiveAlerts(currentActive)
+	duplicateAudit.SuppressedCrossSourceDuplicates += crossSuppressed
+	if err := output.Write(cfg, currentActive, currentFiltered, fullState, previousSourceHealth, duplicateAudit, replacementQueue, incidents); err != nil {
 		return err
 	}
-	if err := saveOSINTIncidents(ctx, cfg, currentActive); err != nil {
+	if err := saveOSINTIncidents(ctx, cfg, incidents); err != nil {
 		fmt.Fprintf(r.stderr, "WARN osint incidents save: %v\n", err)
 	}
 	if err := r.writeNoiseMetrics(ctx, cfg, currentActive, db); err != nil {

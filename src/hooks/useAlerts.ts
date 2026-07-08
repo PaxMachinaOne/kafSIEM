@@ -32,6 +32,8 @@ function alertsAreEqual(a: Alert[], b: Alert[]): boolean {
     if (left.canonical_url !== right.canonical_url) return false;
     if (left.triage?.relevance_score !== right.triage?.relevance_score) return false;
     if (left.triage?.disposition !== right.triage?.disposition) return false;
+    if (left.incident?.incident_id !== right.incident?.incident_id) return false;
+    if (left.incident?.member_count !== right.incident?.member_count) return false;
   }
   return true;
 }

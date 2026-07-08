@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { GitBranch, ChevronDown } from "lucide-react";
 import type { Alert } from "@/types/alert";
-import { formatLinkReason, incidentSummaryLine, resolveIncidentPeers } from "@/lib/incident-links";
+import { useIncidentDetail } from "@/hooks/useIncidentDetail";
+import { formatLinkReason, incidentSummaryLine, mergeIncidentPeers } from "@/lib/incident-links";
 import { categoryLabels } from "@/lib/severity";
 
 interface Props {
@@ -13,12 +14,14 @@ interface Props {
 export function IncidentLinks({ alert, alerts, onSelectAlert }: Props) {
   const [open, setOpen] = useState(false);
   const link = alert.incident;
+  const { detail, isLoading, isAvailable } = useIncidentDetail(link?.incident_id, open);
+
   if (!link || link.member_count < 2) {
     return null;
   }
 
-  const peers = resolveIncidentPeers(alert, alerts);
-  const reasons = link.link_reasons ?? [];
+  const peers = mergeIncidentPeers(alert, alerts, detail?.alerts);
+  const reasons = (detail?.link_reasons?.length ? detail.link_reasons : link.link_reasons) ?? [];
 
   return (
     <div className="rounded-lg border border-siem-border bg-white/5">
@@ -50,7 +53,9 @@ export function IncidentLinks({ alert, alerts, onSelectAlert }: Props) {
             </div>
           ) : null}
 
-          {peers.length > 0 ? (
+          {isLoading ? (
+            <p className="text-xxs text-siem-muted">Loading corroborating alerts...</p>
+          ) : peers.length > 0 ? (
             <div className="space-y-2">
               <div className="text-2xs uppercase tracking-wider text-siem-muted">Corroborating alerts</div>
               {peers.map((peer) => (
@@ -69,7 +74,9 @@ export function IncidentLinks({ alert, alerts, onSelectAlert }: Props) {
             </div>
           ) : (
             <p className="text-xxs text-siem-muted">
-              Related alerts are indexed on this incident but not currently in the active feed.
+              {isAvailable === false
+                ? "Related alerts are indexed on this incident but the incidents API is unavailable."
+                : "Related alerts are indexed on this incident but not currently in the active feed."}
             </p>
           )}
         </div>

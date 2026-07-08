@@ -3,6 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 import { IncidentLinks } from "@/components/IncidentLinks";
 import type { Alert } from "@/types/alert";
 
+vi.mock("@/hooks/useIncidentDetail", () => ({
+  useIncidentDetail: () => ({ detail: null, isLoading: false, isAvailable: null }),
+}));
+
 function buildAlert(id: string, title: string, withIncident = true): Alert {
   return {
     alert_id: id,

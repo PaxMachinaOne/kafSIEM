@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { formatLinkReason, incidentSummaryLine, isIncidentAnchor, resolveIncidentPeers } from "@/lib/incident-links";
+import {
+  formatLinkReason,
+  incidentSummaryLine,
+  isIncidentAnchor,
+  mergeIncidentPeers,
+  resolveIncidentPeers,
+} from "@/lib/incident-links";
 import type { Alert } from "@/types/alert";
 
 function alert(id: string, title: string): Alert {
@@ -61,6 +67,14 @@ describe("incident-links", () => {
   it("returns empty peers when related ids are absent from feed", () => {
     const primary = alert("a1", "Primary");
     expect(resolveIncidentPeers(primary, [primary])).toEqual([]);
+  });
+
+  it("merges local and API peers without duplicates", () => {
+    const primary = alert("a1", "Primary");
+    const localPeer = alert("a2", "Local peer");
+    const remotePeer = alert("a3", "Remote peer");
+    const merged = mergeIncidentPeers(primary, [primary, localPeer], [localPeer, remotePeer]);
+    expect(merged.map((item) => item.alert_id).sort()).toEqual(["a2", "a3"]);
   });
 
   it("builds a compact summary line", () => {

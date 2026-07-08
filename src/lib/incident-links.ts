@@ -15,6 +15,20 @@ export function resolveIncidentPeers(alert: Alert, alerts: Alert[]): Alert[] {
     .filter((item): item is Alert => Boolean(item));
 }
 
+export function mergeIncidentPeers(
+  alert: Alert,
+  localAlerts: Alert[],
+  remoteAlerts: Alert[] | undefined,
+): Alert[] {
+  const local = resolveIncidentPeers(alert, localAlerts);
+  const remote = (remoteAlerts ?? []).filter((item) => item.alert_id !== alert.alert_id);
+  const byID = new Map<string, Alert>();
+  for (const peer of [...local, ...remote]) {
+    byID.set(peer.alert_id, peer);
+  }
+  return [...byID.values()];
+}
+
 export function formatLinkReason(reason: string): string {
   if (reason.startsWith("shared_cve:")) {
     return `Shared ${reason.slice("shared_cve:".length)}`;

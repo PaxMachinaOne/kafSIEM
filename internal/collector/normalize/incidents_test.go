@@ -82,6 +82,46 @@ func TestApplyIncidentLinksCVE(t *testing.T) {
 	}
 }
 
+func TestFinalizeActiveAlertsCrossSourceBeforeDedup(t *testing.T) {
+	alerts := []model.Alert{
+		{
+			AlertID:   "a1",
+			SourceID:  "src-a",
+			Title:     "Mogadishu market attack kills twelve civilians",
+			Category:  "terrorism_tip",
+			Severity:  "high",
+			FirstSeen: "2026-04-10T10:00:00Z",
+			LastSeen:  "2026-04-10T10:00:00Z",
+		},
+		{
+			AlertID:   "a2",
+			SourceID:  "src-b",
+			Title:     "Mogadishu market attack leaves twelve civilians dead",
+			Category:  "terrorism_tip",
+			Severity:  "high",
+			FirstSeen: "2026-04-10T11:00:00Z",
+			LastSeen:  "2026-04-10T11:00:00Z",
+		},
+	}
+
+	finalized, summaries, suppressed := FinalizeActiveAlerts(alerts)
+	if suppressed != 1 {
+		t.Fatalf("expected one suppressed corroborator, got %d", suppressed)
+	}
+	if len(finalized) != 1 {
+		t.Fatalf("expected one active alert after finalize, got %d", len(finalized))
+	}
+	if len(summaries) != 1 || summaries[0].MemberCount != 2 {
+		t.Fatalf("expected incident with 2 members, got %#v", summaries)
+	}
+	if finalized[0].Incident == nil {
+		t.Fatal("expected primary alert to retain incident metadata")
+	}
+	if len(finalized[0].Incident.RelatedAlertIDs) != 1 {
+		t.Fatalf("expected one related alert id, got %#v", finalized[0].Incident.RelatedAlertIDs)
+	}
+}
+
 func TestExtractCVEs(t *testing.T) {
 	got := extractCVEs("Critical CVE-2026-9999 and cve-2026-1111 advisories")
 	if len(got) != 2 || got[0] != "CVE-2026-1111" || got[1] != "CVE-2026-9999" {

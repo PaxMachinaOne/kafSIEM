@@ -24,7 +24,8 @@ import { useConflictStats } from "@/hooks/useConflictStats";
 import type { ZoneBriefingEvent } from "@/types/zone-briefing";
 import type { ConflictLens } from "@/lib/conflict-lenses";
 import type { ConflictCountryFocus } from "@/types/current-conflicts";
-import { Clock, Building2, ChevronDown, Globe } from "lucide-react";
+import { Clock, Building2, ChevronDown, Globe, GitBranch } from "lucide-react";
+import { isIncidentAnchor } from "@/lib/incident-links";
 
 const LIVE_WINDOW_MS = 48 * 60 * 60 * 1000; // 48 hours
 const PREFERRED_REGION_ORDER = ["Europe", "Middle East", "Africa", "North America", "Asia-Pacific"] as const;
@@ -488,6 +489,12 @@ export function AlertFeed({
             {typeof alert.triage?.relevance_score === "number" && (
               <span className="inline-flex items-center px-1.5 py-0.5 text-2xs uppercase tracking-wider rounded border border-siem-border text-siem-muted bg-white/5">
                 Rel {Math.round(alert.triage.relevance_score * 100)}
+              </span>
+            )}
+            {isIncidentAnchor(alert) && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-2xs uppercase tracking-wider rounded border border-siem-accent/35 text-siem-accent bg-siem-accent/12">
+                <GitBranch size={10} />
+                {alert.incident?.member_count ?? 0} linked
               </span>
             )}
           </div>

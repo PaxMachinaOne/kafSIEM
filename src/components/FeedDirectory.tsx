@@ -7,10 +7,13 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
+  GitBranch,
   Radar,
   ShieldAlert,
   TrendingUp,
 } from "lucide-react";
+import { useIncidents } from "@/hooks/useIncidents";
+import { isIncidentAnchor } from "@/lib/incident-links";
 import type { Alert, AlertCategory } from "@/types/alert";
 import type { SourceHealthDocument } from "@/types/source-health";
 import { categoryLabels, categoryBadge, categoryOrder } from "@/lib/severity";
@@ -62,6 +65,7 @@ export function FeedDirectory({
 }: Props) {
   const [now, setNow] = useState(() => Date.now());
   const [stableTotalSources, setStableTotalSources] = useState(0);
+  const { incidents, isAvailable: incidentsApiAvailable } = useIncidents(100);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 60_000);
@@ -190,13 +194,17 @@ export function FeedDirectory({
       : totalRegistered > 0
         ? totalRegistered
         : uniqueFeeds.size;
+    const linkedInFeed = summaryAlerts.filter(isIncidentAnchor).length;
+    const linkedClusters = incidentsApiAvailable ? incidents.length : linkedInFeed;
     return {
       alerts: summaryAlerts.length,
       countries: uniqueCountries.size,
       feeds: uniqueFeeds.size,
       totalFeeds,
+      linkedClusters,
+      linkedInFeed,
     };
-  }, [summaryAlerts, sourceHealth, stableTotalSources]);
+  }, [summaryAlerts, sourceHealth, stableTotalSources, incidents.length, incidentsApiAvailable]);
 
   const toggleSource = (sourceId: string) => {
     if (selectedSourceIds.includes(sourceId)) {
@@ -298,6 +306,16 @@ export function FeedDirectory({
             <div className="uppercase tracking-[0.1em] text-siem-muted" style={{ fontSize: "0.6rem" }}>Feeds</div>
           </div>
         </div>
+
+        {zoneSummary.linkedClusters > 0 ? (
+          <div className="flex items-center gap-1.5 rounded-md border border-siem-border bg-siem-panel-strong px-2.5 py-1.5 text-4xs uppercase tracking-[0.14em] text-siem-muted">
+            <GitBranch size={10} className="text-siem-accent" />
+            <span>
+              {zoneSummary.linkedClusters} linked incident{zoneSummary.linkedClusters === 1 ? "" : "s"}
+              {incidentsApiAvailable ? "" : ` · ${zoneSummary.linkedInFeed} in feed`}
+            </span>
+          </div>
+        ) : null}
 
         {/* ── Category breakdown ──────────────────────────────────── */}
         <div>

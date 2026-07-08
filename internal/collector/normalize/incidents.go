@@ -234,6 +234,14 @@ func ApplyIncidentLinks(alerts []model.Alert) ([]model.Alert, []model.IncidentSu
 	return out, summaries
 }
 
+// FinalizeActiveAlerts builds incident clusters before cross-source dedup
+// collapses corroborating alerts out of the active feed.
+func FinalizeActiveAlerts(alerts []model.Alert) ([]model.Alert, []model.IncidentSummary, int) {
+	linked, summaries := ApplyIncidentLinks(alerts)
+	finalized, suppressed := crossSourceDedup(linked)
+	return finalized, summaries, suppressed
+}
+
 func extractCVEs(text string) []string {
 	matches := cvePattern.FindAllString(text, -1)
 	if len(matches) == 0 {
