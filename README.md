@@ -43,9 +43,15 @@ npm run demo:ontology:scada    # SCADA / OT ontology desk
 npm run demo:fusion            # operations plus OSINT correlation
 ```
 
-Opens the Operations or Fusion desk with typed mock API data. For OSINT attack
-relations without Docker, use `npm run dev` and open `/?demo=fusion` — includes
-cyber and terror incident clusters in the Relations panel.
+Opens the Operations or Fusion desk with typed mock API data. For the public
+OSINT attack-relations demo without Docker:
+
+```bash
+npm run demo:osint
+```
+
+Opens the OSINT console with bundled alert and incident fixtures — cyber, malware,
+and terror clusters in the Relations panel.
 
 ## What you get
 
@@ -187,7 +193,7 @@ OSINT-only local dev without Docker:
 ```bash
 npm install
 npm run fetch:alerts:watch   # live collector JSON (optional)
-npm run dev                  # or ?demo=fusion for bundled relation demo
+npm run demo:osint           # OSINT relations demo (no Docker)
 ```
 
 Browse corroborated clusters: header **Relations** → filter by attack type

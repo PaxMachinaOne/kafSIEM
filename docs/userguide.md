@@ -196,13 +196,13 @@ Detail responses include `timeline`, `geo`, and `graph` for analyst overview.
 
 ```bash
 npm install
-npm run dev
-# open http://localhost:5173/?demo=fusion
+npm run demo:osint
+# or: npm run dev and open http://localhost:5173/?demo=osint
 ```
 
-Demo fixtures include a **cyber** CVE cluster (3 sources) and a **terror**
-Al-Shabaab cross-domain cluster (conflict + terror feeds). Click **Relations**
-to browse both.
+Demo fixtures include **cyber** CVE and Dridex malware clusters, an **ICS/energy**
+sector-targeting cluster, and a **terror** Al-Shabaab cross-domain cluster. Click
+**Relations** to browse all four.
 
 ---
 

@@ -14,6 +14,7 @@
   },
   "scripts": {
     "dev": "vite",
+    "demo:osint": "vite --open '/?demo=osint'",
     "demo:ontology": "vite --open '/?demo=ontology'",
     "demo:ontology:drones": "vite --open '/?demo=ontology&scenario=drones'",
     "demo:ontology:scada": "vite --open '/?demo=ontology&scenario=scada'",

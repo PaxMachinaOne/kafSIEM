@@ -164,7 +164,8 @@ npm run demo:ontology
 npm run demo:fusion
 ```
 
-The demo URLs are `/?demo=ontology` for Operations and `/?demo=fusion` for
+The demo URLs are `/?demo=osint` for the public OSINT relations console,
+`/?demo=ontology` for Operations, and `/?demo=fusion` for
 Fusion. They do not restore the discontinued legacy dashboard.
 
 For live local development against collector and API output:
