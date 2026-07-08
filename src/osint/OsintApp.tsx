@@ -511,8 +511,8 @@ export default function App() {
         <div className={`${mobilePane === "map" ? "block" : "hidden"} md:block min-h-0 flex-1 min-w-0`}>
           <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-siem-muted">Loading map...</div>}>
             <GlobeView
-              alerts={scopedAlerts}
-              historicalAlerts={scopedStateAlerts}
+              alerts={selectedIncident ? selectedIncidentAlerts : scopedAlerts}
+              historicalAlerts={selectedIncident ? selectedIncidentAlerts : scopedStateAlerts}
               selectedId={selectedId}
               onSelect={setSelectedId}
               regionFilter={regionFilter}
@@ -552,6 +552,7 @@ export default function App() {
                   }}
                   requestedViewMode={requestedViewMode}
                   requestedViewModeKey={requestedViewModeKey}
+                  includeInfoInTimeline={selectedIncident !== null}
                 />
               </Suspense>
             )}

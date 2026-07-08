@@ -49,6 +49,7 @@ interface Props {
   /** When set, switches the right panel to this view mode. Bump requestedViewModeKey to re-trigger the same mode. */
   requestedViewMode?: "now" | "history" | "now_history" | "briefing" | null;
   requestedViewModeKey?: number;
+  includeInfoInTimeline?: boolean;
 }
 
 export function AlertFeed({
@@ -64,6 +65,7 @@ export function AlertFeed({
   onVisibleAlertIdsChange,
   requestedViewMode,
   requestedViewModeKey,
+  includeInfoInTimeline = false,
 }: Props) {
   const [viewMode, setViewMode] = useState<"now" | "history" | "now_history" | "briefing">("now");
 
@@ -268,8 +270,11 @@ export function AlertFeed({
 
   // Separate briefing lane from actionable lanes.
   const actionableAlerts = useMemo(
-    () => facetFiltered.filter((a) => (a.signal_lane ?? (a.severity === "info" ? "info" : "intel")) !== "info"),
-    [facetFiltered],
+    () =>
+      includeInfoInTimeline
+        ? facetFiltered
+        : facetFiltered.filter((a) => (a.signal_lane ?? (a.severity === "info" ? "info" : "intel")) !== "info"),
+    [facetFiltered, includeInfoInTimeline],
   );
 
   const briefingAlerts = useMemo(
@@ -299,13 +304,13 @@ export function AlertFeed({
     () =>
       historicalFacetFiltered
         .filter((a) => a.status !== "filtered")
-        .filter((a) => (a.signal_lane ?? (a.severity === "info" ? "info" : "intel")) !== "info")
+        .filter((a) => includeInfoInTimeline || (a.signal_lane ?? (a.severity === "info" ? "info" : "intel")) !== "info")
         .filter((a) => {
           const t = new Date(a.last_seen).getTime();
           return t < liveCutoff;
         })
         .sort((a, b) => new Date(b.last_seen).getTime() - new Date(a.last_seen).getTime()),
-    [historicalFacetFiltered, liveCutoff],
+    [historicalFacetFiltered, includeInfoInTimeline, liveCutoff],
   );
 
   const nowAndHistoryAlerts = useMemo(() => {
