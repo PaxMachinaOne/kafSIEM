@@ -5,6 +5,7 @@
  */
 
 import type { Alert } from "@/types/alert";
+import { IncidentLinks } from "@/components/IncidentLinks";
 import {
   severityBg,
   severityLabel,
@@ -22,10 +23,12 @@ import {
 
 interface Props {
   alert: Alert | null;
+  alerts?: Alert[];
   onClose: () => void;
+  onSelectAlert?: (alertId: string) => void;
 }
 
-export function AlertDetail({ alert, onClose }: Props) {
+export function AlertDetail({ alert, alerts = [], onClose, onSelectAlert }: Props) {
   if (!alert) return null;
   const subcategoryLabel = (alert.subcategory ?? "")
     .split("_")
@@ -195,6 +198,14 @@ export function AlertDetail({ alert, onClose }: Props) {
             )}
           </div>
         </div>
+
+        <IncidentLinks
+          alert={alert}
+          alerts={alerts}
+          onSelectAlert={(alertId) => {
+            onSelectAlert?.(alertId);
+          }}
+        />
 
         {alert.triage && (
           <div className="bg-white/5 rounded-lg p-3 border border-siem-border space-y-2">

@@ -497,7 +497,12 @@ export default function App() {
             />
             <div className="w-full overflow-hidden rounded-[1.6rem] border border-siem-border bg-siem-panel-strong shadow-[0_28px_100px_rgba(0,0,0,0.45)]">
               <Suspense fallback={<div className="flex h-full w-full items-center justify-center text-sm text-siem-muted">Loading alert details...</div>}>
-                <AlertDetail alert={selectedAlert} onClose={handleClose} />
+                <AlertDetail
+                  alert={selectedAlert}
+                  alerts={scopedAlerts}
+                  onClose={handleClose}
+                  onSelectAlert={setSelectedId}
+                />
               </Suspense>
             </div>
           </div>
