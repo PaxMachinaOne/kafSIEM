@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   formatLinkReason,
+  geographyLabel,
   incidentSummaryLine,
+  isGeographyReason,
   isIncidentAnchor,
   isIncidentPrimary,
   mergeIncidentPeers,
@@ -100,5 +102,23 @@ describe("incident-links", () => {
     });
     expect(line).toContain("3 linked alerts");
     expect(line).toContain("CVE-2026-1234");
+  });
+
+  it("labels shared geography for a single country", () => {
+    expect(geographyLabel(["AU"])).toBe("Shared geography (AU)");
+  });
+
+  it("labels geographic spread for multiple countries", () => {
+    expect(geographyLabel(["FR", "de", "BE", "FR"])).toBe("Geographic spread (BE, DE, FR)");
+  });
+
+  it("returns null when no countries are known", () => {
+    expect(geographyLabel(undefined)).toBeNull();
+    expect(geographyLabel([])).toBeNull();
+  });
+
+  it("identifies geography link reasons", () => {
+    expect(isGeographyReason("shared_country:AU")).toBe(true);
+    expect(isGeographyReason("shared_cve:CVE-2026-1234")).toBe(false);
   });
 });

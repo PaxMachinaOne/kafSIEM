@@ -79,6 +79,7 @@ export interface Alert {
 export interface IncidentLink {
   incident_id: string;
   member_count: number;
+  source_count?: number;
   primary_alert_id?: string;
   role?: "primary" | "member";
   related_alert_ids?: string[];

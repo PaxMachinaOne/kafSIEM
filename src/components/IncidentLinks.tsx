@@ -5,7 +5,9 @@ import { useIncidentDetail } from "@/hooks/useIncidentDetail";
 import { IncidentRelationGraph } from "@/components/IncidentRelationGraph";
 import {
   formatLinkReason,
+  geographyLabel,
   incidentSummaryLine,
+  isGeographyReason,
   isIncidentPrimary,
   mergeIncidentPeers,
 } from "@/lib/incident-links";
@@ -27,7 +29,10 @@ export function IncidentLinks({ alert, alerts, onSelectAlert }: Props) {
   }
 
   const peers = mergeIncidentPeers(alert, alerts, detail?.alerts);
-  const reasons = (detail?.link_reasons?.length ? detail.link_reasons : link.link_reasons) ?? [];
+  const geography = geographyLabel(detail?.countries ?? link.shared_countries);
+  const reasons = ((detail?.link_reasons?.length ? detail.link_reasons : link.link_reasons) ?? []).filter(
+    (reason) => !geography || !isGeographyReason(reason),
+  );
   const roleLabel = isIncidentPrimary(alert) ? "Primary cluster alert" : "Corroborating cluster member";
 
   return (
@@ -51,13 +56,16 @@ export function IncidentLinks({ alert, alerts, onSelectAlert }: Props) {
 
       {open ? (
         <div className="space-y-3 border-t border-siem-border px-3 py-3">
-          {reasons.length > 0 ? (
+          {reasons.length > 0 || geography ? (
             <div className="flex flex-wrap gap-1.5">
               {reasons.map((reason) => (
                 <span key={reason} className="rounded-full border border-siem-border px-2 py-0.5 text-xxs text-siem-muted">
                   {formatLinkReason(reason)}
                 </span>
               ))}
+              {geography ? (
+                <span className="rounded-full border border-siem-border px-2 py-0.5 text-xxs text-siem-muted">{geography}</span>
+              ) : null}
             </div>
           ) : null}
 

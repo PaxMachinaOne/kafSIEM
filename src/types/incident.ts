@@ -6,6 +6,7 @@ export interface IncidentSummary {
   category: string;
   severity: string;
   member_count: number;
+  source_count?: number;
   primary_alert_id: string;
   alert_ids: string[];
   link_reasons?: string[];

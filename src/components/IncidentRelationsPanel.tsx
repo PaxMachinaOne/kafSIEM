@@ -9,7 +9,7 @@ import {
   normalizeAttackType,
   type AttackType,
 } from "@/lib/attack-types";
-import { formatLinkReason } from "@/lib/incident-links";
+import { formatLinkReason, geographyLabel, isGeographyReason } from "@/lib/incident-links";
 import type { IncidentSummary } from "@/types/incident";
 
 interface Props {
@@ -97,7 +97,15 @@ function IncidentRelationCard({
   onSelectIncident: (incident: IncidentSummary) => void;
 }) {
   const attackType = normalizeAttackType(incident.attack_type);
-  const reasons = (incident.link_reasons ?? []).slice(0, 3);
+  const sourceCount = incident.source_count ?? 0;
+  const countLabel =
+    sourceCount > 0 && sourceCount !== incident.member_count
+      ? `${sourceCount} sources · ${incident.member_count} alerts`
+      : `${sourceCount || incident.member_count} sources`;
+  const geography = geographyLabel(incident.countries);
+  const reasons = (incident.link_reasons ?? [])
+    .filter((reason) => !geography || !isGeographyReason(reason))
+    .slice(0, 3);
 
   return (
     <button
@@ -112,7 +120,7 @@ function IncidentRelationCard({
               {attackTypeLabels[attackType]}
             </span>
             <span className="rounded-full border border-siem-border px-2 py-0.5 text-4xs uppercase tracking-[0.14em] text-siem-muted">
-              {incident.member_count} sources
+              {countLabel}
             </span>
           </div>
           <div className="mt-2 text-sm font-medium text-siem-text line-clamp-2">{incident.title}</div>
@@ -121,13 +129,16 @@ function IncidentRelationCard({
         {attackType === "cyber" ? <ShieldAlert size={16} className="shrink-0 text-cyan-300" /> : <Radar size={16} className="shrink-0 text-orange-300" />}
       </div>
 
-      {reasons.length > 0 ? (
+      {reasons.length > 0 || geography ? (
         <div className="mt-2 flex flex-wrap gap-1">
           {reasons.map((reason) => (
             <span key={reason} className="rounded-full border border-siem-border px-2 py-0.5 text-xxs text-siem-muted">
               {formatLinkReason(reason)}
             </span>
           ))}
+          {geography ? (
+            <span className="rounded-full border border-siem-border px-2 py-0.5 text-xxs text-siem-muted">{geography}</span>
+          ) : null}
         </div>
       ) : null}
     </button>

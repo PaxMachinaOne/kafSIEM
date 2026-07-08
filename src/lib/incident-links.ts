@@ -88,6 +88,17 @@ export function formatLinkReason(reason: string): string {
   return reason.replaceAll("_", " ");
 }
 
+export function geographyLabel(countries: string[] | undefined): string | null {
+  const codes = [...new Set((countries ?? []).map((code) => code.trim().toUpperCase()).filter(Boolean))].sort();
+  if (codes.length === 0) return null;
+  if (codes.length === 1) return `Shared geography (${codes[0]})`;
+  return `Geographic spread (${codes.join(", ")})`;
+}
+
+export function isGeographyReason(reason: string): boolean {
+  return reason.startsWith("shared_country:");
+}
+
 export function incidentSummaryLine(link: IncidentLink): string {
   const parts: string[] = [`${link.member_count} linked alerts`];
   if (link.shared_cves?.length) {
