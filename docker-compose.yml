@@ -133,7 +133,7 @@ services:
       KAFSIEM_PACKS_DIR: "/packs"
       KAFSIEM_COLLECTOR_BASE_URL: "http://collector:3001"
     volumes:
-      - feed-data:/data:ro
+      - feed-data:/data
       - ./packs:/packs:ro
     depends_on:
       - collector
