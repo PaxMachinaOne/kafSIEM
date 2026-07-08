@@ -180,7 +180,7 @@ export function AlertDetail({ alert, alerts = [], onClose, onSelectAlert }: Prop
             Authority Type
           </div>
           <div className="text-sm capitalize">
-            {alert.source.authority_type.replace("_", " ")}
+            {(alert.source.authority_type ?? "unknown").replace("_", " ")}
           </div>
         </div>
 
@@ -228,7 +228,7 @@ export function AlertDetail({ alert, alerts = [], onClose, onSelectAlert }: Prop
             </div>
             <div className="text-xxs text-siem-muted">
               Threshold: {Math.round(alert.triage.threshold * 100)} | Disposition:{" "}
-              {alert.triage.disposition.replace("_", " ")}
+              {(alert.triage.disposition ?? "unscored").replace("_", " ")}
             </div>
           </div>
         )}

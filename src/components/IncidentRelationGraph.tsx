@@ -110,7 +110,7 @@ export function IncidentRelationGraph({ detail, currentAlertId, onSelectAlert }:
                 className="block w-full rounded-lg border border-siem-border bg-black/20 px-3 py-2 text-left hover:border-siem-accent/40"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-xxs text-siem-muted">{entry.first_seen.replace("T", " ").replace("Z", " UTC")}</span>
+                  <span className="font-mono text-xxs text-siem-muted">{(entry.first_seen ?? "").replace("T", " ").replace("Z", " UTC")}</span>
                   <span className="flex items-center gap-1.5">
                     {index === 0 ? (
                       <span className="rounded-full border border-siem-accent/40 bg-siem-accent/10 px-1.5 text-xxs text-siem-text">first report</span>
