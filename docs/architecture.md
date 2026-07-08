@@ -1,140 +1,172 @@
 # Architecture
 
-kafSIEM is an entity-centric operations and fusion analysis surface. It joins
-Kafka-observed operational traffic with selected OSINT context, writes durable
-evidence to SQLite, and serves analyst workflows through a typed API and web UI.
+kafSIEM is an entity-centric operations and fusion platform. It consumes
+Kafka-observed agent traffic and OSINT feeds, persists evidence in SQLite, and
+exposes analyst workflows through a typed API and React UI.
 
-It is designed to complement existing enterprise intelligence platforms rather
-than replace them. The integration contract is explicit: kafSIEM exposes
-OpenAPI, ontology endpoints, pack-defined types, provenance, map features, and
-graph neighborhoods that other systems can consume.
+Integration contract for external systems: OpenAPI, ontology endpoints,
+pack-defined types, provenance, map features, and graph neighborhoods.
 
-## Product Boundary
+## Product boundary
 
 kafSIEM is the product in this repository.
 
-- KafScale is the external Kafka transport spine. kafSIEM reads from it.
-- KafClaw-style agents are external producers. They emit messages onto
-  KafScale topics.
-- AgentOps is the internal observer domain that tracks that traffic.
-- Packs are constrained domain interfaces, not plugins.
+| External | Role |
+|----------|------|
+| KafScale | Kafka transport spine. kafSIEM reads from it. |
+| KafClaw | Agent and workflow producers. Emit envelopes on group topics. |
+| Enterprise platforms | Optional consumers of kafSIEM graph and ontology APIs |
 
-The v1 product ships two operating packs:
+Internal concepts:
 
-- `drones`: unmanned systems readiness, sortie, EW, software, and signoff
-  workflows
-- `scada`: plant, device, change, alarm, firmware, vulnerability, and session
-  workflows
+- **Operations observer** (`internal/agentops/`): Kafka consumer, replay,
+  policy, SQLite store, KafClaw envelope handling. Code and env still use the
+  `AgentOps` name.
+- **Packs** (`packs/`, `internal/packs/`): Constrained domain interfaces. YAML
+  only. Not a plugin runtime.
 
-## Operating Modes
+Shipped packs:
 
-- `OSINT`: external intelligence and source-driven research
-- `Operations`: internal telemetry, agent traffic, plant, fleet, system
-  operations, and workflow state
-- `Fusion`: joined workflows where OSINT and operations data are used together
+- `drones`: unmanned systems readiness, sortie, EW, software, signoff
+- `scada`: plant, device, change, alarm, firmware, vulnerability, session
 
-Runtime values remain `OSINT`, `AGENTOPS`, and `HYBRID` for compatibility.
-User-facing copy should use `OSINT`, `Operations`, and `Fusion`.
+## Operating modes
 
-## Package Layout
+| Product name | Runtime `UI_MODE` | Data sources |
+|--------------|-------------------|--------------|
+| OSINT | `OSINT` | Curated feeds, browser scrape, optional LLM gates |
+| Operations | `AGENTOPS` | Kafka group traffic, packs, SQLite graph |
+| Fusion | `HYBRID` | Both. UI correlates flows with OSINT alerts heuristically |
 
-- `cmd/kafsiem-collector/`: ingest binary
-- `cmd/kafsiem-api/`: standalone analyst API binary
-- `cmd/pack-docs/`: generated pack reference docs
-- `internal/agentops/`: Kafka observer, replay, policy, SQLite store, and
-  KafClaw envelope handling
-- `internal/graph/`: entity, edge, provenance, geometry, and traversal storage
-- `internal/packs/`: pack loader, validation, and ontology registration
-- `internal/kafsiemapi/`: HTTP API serving typed analyst resources
-- `packs/`: bundled drones and SCADA pack declarations
-- `src/agentops/`: Operations and Fusion UI surfaces
-- `src/agentops/lib/api-client/`: generated TypeScript API client
-- `api/`: generated OpenAPI contract and spec generator
-
-## Runtime Topology
+## Package layout
 
 ```text
-KafClaw-style agents
-        |
-        v
-KafScale / Kafka topics
-        |
-        v
-cmd/kafsiem-collector  --->  /data/agentops.db (+ WAL/SHM)
-        |                              |
-        | legacy /api/*                v
-        +---------------------> cmd/kafsiem-api
-                                      |
-                                      v
-                              Caddy + web UI
+cmd/kafsiem-collector/   ingest binary (OSINT + Kafka observer)
+cmd/kafsiem-api/         analyst API binary (read path)
+cmd/pack-docs/           generated pack reference docs
+internal/agentops/       Kafka observer, store, policy, envelopes
+internal/graph/          entities, edges, provenance, geometry, queries
+internal/packs/          pack loader and validation
+internal/kafsiemapi/     HTTP handlers for /api/v1
+internal/collector/      OSINT fetch, normalize, noise gate, output
+packs/                   bundled drones and SCADA declarations
+src/agentops/            Operations and Fusion UI
+src/osint/               OSINT UI
+api/                     OpenAPI spec generator and generated contract
 ```
 
-The collector is responsible for ingest and writes. The analyst API is
-responsible for reads, typed query surfaces, and legacy route compatibility.
+## Runtime topology
 
-## Storage Contract
+Docker Compose runs four application services plus shared volumes:
 
-AgentOps state is stored in SQLite at `/data/agentops.db` in Docker. WAL mode
-means the sidecar files are part of the live storage contract:
+```text
+browser          headless Chrome bridge for scrape sources
+collector        writer: OSINT JSON + agentops.db
+kafsiem-api      reader: /api/v1 analyst resources
+kafsiem          Caddy SPA, reverse proxy to kafsiem-api
+```
 
-- `/data/agentops.db`
-- `/data/agentops.db-wal`
-- `/data/agentops.db-shm`
+Data path for Operations mode:
 
-The collector is the writer for observed AgentOps runtime state. The analyst
-API serves typed resources from the same SQLite file and can enqueue replay
-requests, but it must not rewrite observed records or mutate the live Kafka
-tracking group. Backups must be SQLite-aware or include the DB and sidecars
-together.
+```text
+KafClaw agents
+      |
+      v
+KafScale / Kafka topics
+      |
+      v
+cmd/kafsiem-collector
+      |  decode envelope or LFS pointer
+      |  update flows, tasks, traces
+      |  append entities and edges
+      v
+/data/agentops.db (+ WAL/SHM)
+      |
+      v
+cmd/kafsiem-api  --->  Caddy + React desk
+```
 
-## API Contract
+The collector owns ingest and writes. The analyst API serves reads, search,
+detector execution, and replay request enqueue. It does not mutate the live
+Kafka consumer group or rewrite observed records.
 
-The analyst API is versioned under `/api/v1`. Important surfaces:
+Legacy OSINT endpoints (`/api/health`, `/api/search`, and similar) reverse
+proxy to the collector internal API on port 3001.
 
-- entity profile, neighborhood, provenance, geometry, and timeline
-- graph path lookup
-- flow list/detail/messages/tasks/traces
-- replay list/create
-- map layers and GeoJSON features
-- active ontology types and packs
-- typed search
+## Graph model
 
-`api/openapi.yaml` is generated from `api/specgen/specgen.go`. The generated
-TypeScript client lives under `src/agentops/lib/api-client/`.
+SQLite tables in `internal/graph/schema/schema.sql`:
 
-## Pack Contract
+| Table | Purpose |
+|-------|---------|
+| `entities` | Typed objects. ID format `type:canonical_id` |
+| `edges` | Relationships with `valid_from`, optional `valid_to`, `evidence_msg` |
+| `provenance` | Ingest and policy decisions per subject |
+| `entity_geometry` | GeoJSON features and bounding boxes |
 
-Packs declare domain behavior as YAML and Markdown templates:
+Core entity types from Kafka ingest: `agent`, `task`, `trace`, `topic`,
+`correlation`. Pack entity types (for example `platform`, `device`, `fault`)
+are declared in pack YAML and populated by domain ingest or test fixtures.
+
+Every accepted Kafka record can produce graph edges that reference
+`messages(record_id)` for audit trail.
+
+## Storage contract
+
+Operations state path: `/data/agentops.db` in Docker.
+
+WAL mode requires all three files in backup and restore:
+
+- `agentops.db`
+- `agentops.db-wal`
+- `agentops.db-shm`
+
+Volume mounts:
+
+| Mount | Contents |
+|-------|----------|
+| `/config` | `agentops_policy.yaml`, UI policy |
+| `/data` | `agentops.db`, OSINT JSON outputs, replay metadata |
+| `/packs` | Active pack directories (read-only) |
+
+## API contract
+
+Versioned under `/api/v1`:
+
+- Entity profile, neighborhood, provenance, geometry, timeline
+- Graph path lookup
+- Flow list, detail, messages, tasks, traces
+- Replay list and create
+- Map layers and GeoJSON features
+- Ontology types and packs
+- Typed search (includes pack detector SQL)
+
+`api/openapi.yaml` is generated from `api/specgen/specgen.go`. TypeScript
+client: `src/agentops/lib/api-client/`.
+
+## Pack contract
 
 ```text
 packs/<name>/
-  pack.yaml
-  detectors/*.yaml
-  maps/layers.yaml
-  queries/*.yaml
-  reports/*.md.tmpl
-  views/*.yaml
+  pack.yaml           entity_types, edge_types
+  detectors/*.yaml    SQL over named views
+  queries/*.yaml      analyst query templates
+  views/*.yaml        entity profile field layout
+  maps/layers.yaml    map overlay config
+  reports/*.md.tmpl   signoff and incident report templates
 ```
 
-Pack validation is startup-time. Operators restart services to change active
-packs. There is no hot reload and no pack-local executable code.
+Validation runs at API and collector startup. No hot reload. No pack-local
+executable code.
 
-Generated pack references:
+Generated references: [packs/drones.md](packs/drones.md),
+[packs/scada.md](packs/scada.md).
 
-- [Drones pack](packs/drones.md)
-- [SCADA pack](packs/scada.md)
+## Search and integration keywords
 
-## Complementary Platform Integration
+Entity graph, Kafka observer, SQLite analyst API, edge SIEM, drone fleet
+ontology, SCADA change audit, OSINT fusion, provenance trail, OpenAPI
+operations intelligence, KafClaw envelope, replay consumer group.
 
-kafSIEM should be described as a complementary operations/fusion layer. Public
-docs should avoid positioning the product as a clone or derivative of another
-vendor product.
-
-The practical integration posture is:
-
-- expose typed entity and graph APIs
-- expose active ontology through `/api/v1/ontology/types` and
-  `/api/v1/ontology/packs`
-- preserve provenance back to source records
-- keep packs inspectable as YAML
-- keep generated OpenAPI stable for external client generation
+Public positioning: complementary operations and fusion layer. Not a vendor
+platform clone. Stable OpenAPI for external client generation.

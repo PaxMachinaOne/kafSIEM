@@ -10,7 +10,8 @@ kafSIEM integrates with the [Armed Conflict Location & Event Data](https://acled
 ## Setup
 
 1. Register at **https://acleddata.com/register/**
-2. **Use an institutional email** (`@yourorg.com`) — gmail and other public email addresses only grant "Open myACLED" (web-based data export), which does **not** include API access
+2. **Use an institutional email** (`@yourorg.com`). Public email addresses only
+   grant web export ("Open myACLED"), not API access.
 3. Institutional accounts should have API access by default. If not, contact `access@acleddata.com` to request the API tier
 4. Set credentials in `.env`:
 
@@ -21,7 +22,8 @@ ACLED_PASSWORD=your-password
 
 5. The collector will automatically start pulling ACLED events on the next run.
 
-If credentials are not set, the ACLED source is silently skipped — all other sources continue normally.
+If credentials are not set, the ACLED source is silently skipped. All other
+sources continue normally.
 
 ### Verifying API Access
 
@@ -36,7 +38,7 @@ TOKEN=$(curl -s -X POST "https://acleddata.com/oauth/token" \
   -d "grant_type=password" \
   -d "client_id=acled" | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
 
-# Test the API — should return JSON data, not "Access denied"
+# Test the API. Expect JSON data, not "Access denied".
 curl -s -H "Authorization: Bearer $TOKEN" \
   "https://acleddata.com/api/acled/read?_format=json&limit=2"
 ```
@@ -57,9 +59,9 @@ A new token is obtained at the start of each collection run. No token caching or
 
 ```
 ACLED API (/api/acled/read)
-  → parse.ParseACLED()         — JSON → ACLEDItem (with lat/lng, event type, fatalities)
-  → normalize.ACLEDAlert()     — category/severity mapping, ISO3→ISO2 country, geo override
-  → standard pipeline          — FTS indexing, trend detection, country digest, globe view
+  → parse.ParseACLED()         JSON to ACLEDItem (lat/lng, event type, fatalities)
+  → normalize.ACLEDAlert()     category/severity, ISO3 to ISO2, geo override
+  → standard pipeline          FTS, trends, country digest, globe view
 ```
 
 ## Event Type Mapping
