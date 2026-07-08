@@ -855,7 +855,7 @@ func usesFastLane(s model.RegistrySource) bool {
 // browser bridge or need browser/cadence-aware handling.
 func usesBrowserLane(s model.RegistrySource) bool {
 	switch s.Type {
-	case "html-list", "telegram", "x", "interpol-red-json", "interpol-yellow-json":
+	case "html-list", "telegram", "x", "interpol-red-json", "interpol-yellow-json", "imb-piracy-html":
 		return true
 	}
 	return strings.EqualFold(strings.TrimSpace(s.FetchMode), "browser")
@@ -985,7 +985,17 @@ func (r Runner) fetchOneSource(ctx context.Context, defaultClient *fetch.Client,
 		}
 	}
 
-	batch, err := r.fetchSource(ctx, fetcher, nil, nctx, source, categoryDictionary, cursors)
+	var batch []model.Alert
+	var err error
+	var openSanctionsVersion string
+	if source.Type == "opensanctions-json" {
+		if skip, skipEntry := r.skipOpenSanctionsIfCurrent(ctx, fetcher, source, wm, startedAt); skip {
+			return nil, skipEntry
+		}
+		batch, openSanctionsVersion, err = r.fetchOpenSanctions(ctx, fetcher, nctx, source)
+	} else {
+		batch, err = r.fetchSource(ctx, fetcher, nil, nctx, source, categoryDictionary, cursors)
+	}
 
 	// Retry once for transient errors after a short backoff.
 	if err != nil {
@@ -1010,7 +1020,11 @@ func (r Runner) fetchOneSource(ctx context.Context, defaultClient *fetch.Client,
 				} else {
 					retryFetcher = defaultClient
 				}
-				batch, err = r.fetchSource(ctx, retryFetcher, nil, nctx, source, categoryDictionary, cursors)
+				if source.Type == "opensanctions-json" {
+					batch, openSanctionsVersion, err = r.fetchOpenSanctions(ctx, retryFetcher, nctx, source)
+				} else {
+					batch, err = r.fetchSource(ctx, retryFetcher, nil, nctx, source, categoryDictionary, cursors)
+				}
 			}
 		}
 	}
@@ -1023,7 +1037,7 @@ func (r Runner) fetchOneSource(ctx context.Context, defaultClient *fetch.Client,
 		StartedAt:        startedAt.Format(time.RFC3339),
 		FinishedAt:       time.Now().UTC().Format(time.RFC3339),
 		RespETag:         respETag,
-		RespLastModified: respLastModified,
+		RespLastModified: firstNonEmpty(openSanctionsVersion, respLastModified),
 	}
 
 	if err != nil {
@@ -1065,6 +1079,8 @@ func acceptForType(sourceType string) string {
 		return "text/csv, text/plain, application/gzip, */*;q=0.8"
 	case "un-sanctions-xml", "ofac-sdn-xml":
 		return "application/xml, text/xml;q=0.9, */*;q=0.8"
+	case "opensanctions-json":
+		return "application/json, application/x-ndjson, */*;q=0.8"
 	case "travelwarning-atom":
 		return "application/atom+xml, application/xml;q=0.9, */*;q=0.8"
 	default:
@@ -1133,7 +1149,7 @@ func typePriority(kind string) int {
 		return 5
 	case "interpol-red-json", "interpol-yellow-json", "fbi-wanted-json", "travelwarning-json", "travelwarning-atom":
 		return 4
-	case "usgs-geojson", "eonet-json", "feodo-json", "gdelt-json", "ucdp-json", "urlhaus-csv", "un-sanctions-xml", "ofac-sdn-xml":
+	case "usgs-geojson", "eonet-json", "feodo-json", "gdelt-json", "ucdp-json", "urlhaus-csv", "un-sanctions-xml", "ofac-sdn-xml", "opensanctions-json":
 		return 4
 	case "rss":
 		return 3
@@ -1201,6 +1217,8 @@ func (r Runner) fetchSource(ctx context.Context, fetcher fetch.Fetcher, browser 
 		return r.fetchUNSanctions(ctx, fetcher, nctx, source)
 	case "ofac-sdn-xml":
 		return r.fetchOFACSanctions(ctx, fetcher, nctx, source)
+	case "imb-piracy-html":
+		return r.fetchIMBPiracy(ctx, fetcher, nctx, source)
 	default:
 		return nil, fmt.Errorf("unsupported source type %s", source.Type)
 	}
@@ -2210,6 +2228,84 @@ func (r Runner) fetchOFACSanctions(ctx context.Context, fetcher fetch.Fetcher, n
 	out := make([]model.Alert, 0, len(items))
 	for _, item := range items {
 		alert := normalize.SanctionsAlert(nctx, source, item)
+		if alert != nil {
+			out = append(out, *alert)
+		}
+	}
+	return out, nil
+}
+
+func (r Runner) skipOpenSanctionsIfCurrent(ctx context.Context, fetcher fetch.Fetcher, source model.RegistrySource, wm *sourcedb.SourceWatermark, startedAt time.Time) (bool, model.SourceHealthEntry) {
+	entry := model.SourceHealthEntry{
+		SourceID:      source.Source.SourceID,
+		AuthorityName: source.Source.AuthorityName,
+		Type:          source.Type,
+		FeedURL:       source.FeedURL,
+		StartedAt:     startedAt.Format(time.RFC3339),
+		FinishedAt:    time.Now().UTC().Format(time.RFC3339),
+	}
+	if wm == nil || wm.LastStatus != "ok" || strings.TrimSpace(wm.LastModified) == "" {
+		return false, entry
+	}
+	body, err := fetcher.Text(ctx, source.FeedURL, source.FollowRedirects, acceptForType(source.Type))
+	if err != nil {
+		return false, entry
+	}
+	index, _, err := parse.ParseOpenSanctionsIndex(body)
+	if err != nil {
+		return false, entry
+	}
+	if strings.TrimSpace(index.LastChange) != strings.TrimSpace(wm.LastModified) {
+		return false, entry
+	}
+	entry.Status = "ok"
+	entry.ErrorClass = "not_modified"
+	entry.RespLastModified = index.LastChange
+	return true, entry
+}
+
+func (r Runner) fetchOpenSanctions(ctx context.Context, fetcher fetch.Fetcher, nctx normalize.Context, source model.RegistrySource) ([]model.Alert, string, error) {
+	indexBody, err := fetcher.Text(ctx, source.FeedURL, source.FollowRedirects, acceptForType(source.Type))
+	if err != nil {
+		return nil, "", err
+	}
+	index, entitiesURL, err := parse.ParseOpenSanctionsIndex(indexBody)
+	if err != nil {
+		return nil, "", err
+	}
+	client, ok := fetcher.(*fetch.Client)
+	if !ok {
+		return nil, "", fmt.Errorf("opensanctions requires HTTP client fetcher")
+	}
+	stream, err := client.OpenStream(ctx, entitiesURL, true, acceptForType(source.Type))
+	if err != nil {
+		return nil, "", err
+	}
+	defer stream.Close()
+
+	items, err := parse.ParseOpenSanctionsEntities(stream, normalize.MatchActorInText, perSourceLimit(nctx.Config, source))
+	if err != nil {
+		return nil, "", err
+	}
+	out := make([]model.Alert, 0, len(items))
+	for _, item := range items {
+		alert := normalize.SanctionsAlert(nctx, source, item)
+		if alert != nil {
+			out = append(out, *alert)
+		}
+	}
+	return out, index.LastChange, nil
+}
+
+func (r Runner) fetchIMBPiracy(ctx context.Context, fetcher fetch.Fetcher, nctx normalize.Context, source model.RegistrySource) ([]model.Alert, error) {
+	body, finalURL, err := fetchWithFallbackURL(ctx, fetcher, source, "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	if err != nil {
+		return nil, err
+	}
+	items := parse.ParseIMBPiracyWarnings(string(body), finalURL, perSourceLimit(nctx.Config, source))
+	out := make([]model.Alert, 0, len(items))
+	for _, item := range items {
+		alert := normalize.IMBPiracyAlert(nctx, source, item)
 		if alert != nil {
 			out = append(out, *alert)
 		}

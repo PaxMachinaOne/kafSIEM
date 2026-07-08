@@ -4,16 +4,17 @@ services:
     image: "${KAFSIEM_BROWSER_IMAGE:-ghcr.io/browserless/chromium:v2.44.0}"
     environment:
       PREBOOT_CHROME: "true"
-      MAX_CONCURRENT_SESSIONS: "${BROWSER_MAX_CONCURRENCY:-4}"
-      CONNECTION_TIMEOUT: "60000"
+      MAX_CONCURRENT_SESSIONS: "${BROWSER_MAX_CONCURRENCY:-3}"
+      CONNECTION_TIMEOUT: "120000"
+      TIMEOUT: "300000"
+      QUEUED: "true"
       HEALTH: "true"
-      EXIT_ON_HEALTH_FAILURE: "true"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/json/version || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3000/json/version >/dev/null || exit 1"]
       interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
+      timeout: 15s
+      retries: 5
+      start_period: 45s
     init: true
     shm_size: 1gb
     restart: unless-stopped
@@ -106,7 +107,7 @@ services:
       - ./registry/geo/terror-activity-seed.geojson:/app/registry/geo/terror-activity-seed.geojson:ro
     depends_on:
       browser:
-        condition: service_healthy
+        condition: service_started
     init: true
     restart: unless-stopped
 

@@ -78,6 +78,46 @@ func TestParseUNSanctionsXML(t *testing.T) {
 	}
 }
 
+func TestParseOpenSanctionsIndex(t *testing.T) {
+	body := []byte(`{"last_change":"2026-07-08T06:58:01","resources":[{"name":"entities.ftm.json","url":"https://data.opensanctions.org/artifacts/sanctions/latest/entities.ftm.json"}]}`)
+	index, url, err := ParseOpenSanctionsIndex(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if index.LastChange == "" || url == "" {
+		t.Fatalf("unexpected index parse: %#v %q", index, url)
+	}
+}
+
+func TestParseOpenSanctionsEntities(t *testing.T) {
+	line := `{"id":"NK-test","caption":"Islamic State affiliate","schema":"Organization","datasets":["us_ofac_sdn"],"properties":{"name":["Islamic State affiliate"],"topics":["crime.terror"]}}`
+	items, err := ParseOpenSanctionsEntities(strings.NewReader(line+"\n"), func(text string) string {
+		if strings.Contains(strings.ToLower(text), "islamic state") {
+			return "Islamic State"
+		}
+		return ""
+	}, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].ActorMatch != "Islamic State" {
+		t.Fatalf("unexpected opensanctions parse: %#v", items)
+	}
+}
+
+func TestParseIMBPiracyWarnings(t *testing.T) {
+	body := `<html><body>
+	<h2>WEST AFRICA (Gulf of Guinea)</h2>
+	<p>Vessels are advised to remain vigilant while in these waters due to piracy and armed robbery.</p>
+	<h2>RED SEA / GULF OF ADEN</h2>
+	<p>Mariners are advised to exercise caution due to Houthi attacks on commercial shipping.</p>
+	</body></html>`
+	items := ParseIMBPiracyWarnings(body, "https://icc-ccs.org/piracy-and-armed-robbery-prone-areas-and-warnings/", 5)
+	if len(items) < 2 {
+		t.Fatalf("expected IMB warnings, got %#v", items)
+	}
+}
+
 func TestParseOFACSDNXML(t *testing.T) {
 	body := []byte(`<sdnList><sdnEntry>
 	  <uid>99</uid><firstName></firstName><lastName>ISLAMIC STATE OF IRAQ AND THE LEVANT</lastName>

@@ -26,5 +26,33 @@
   {
     "canonical": "Boko Haram",
     "aliases": ["boko haram", "jama'at ahl as-sunnah lid-da'wah wa'l-jihad"]
+  },
+  {
+    "canonical": "Taliban",
+    "aliases": ["taliban", "islamic emirate of afghanistan"]
+  },
+  {
+    "canonical": "Houthis",
+    "aliases": ["houthi", "houthis", "ansar allah", "ansarallah"]
+  },
+  {
+    "canonical": "Hezbollah",
+    "aliases": ["hezbollah", "hizbullah", "hizballah", "party of god"]
+  },
+  {
+    "canonical": "Hamas",
+    "aliases": ["hamas", "islamic resistance movement"]
+  },
+  {
+    "canonical": "PKK",
+    "aliases": ["pkk", "kurdistan workers party", "kurdistan workers' party"]
+  },
+  {
+    "canonical": "Lashkar-e-Taiba",
+    "aliases": ["lashkar-e-taiba", "lashkar e taiba", "let"]
+  },
+  {
+    "canonical": "Tehrik-i-Taliban Pakistan",
+    "aliases": ["tehrik-i-taliban pakistan", "ttp", "pakistani taliban"]
   }
 ]

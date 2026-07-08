@@ -119,7 +119,7 @@ func isEPSSSource(alert model.Alert) bool {
 
 func isSanctionsSource(alert model.Alert) bool {
 	sourceID := strings.ToLower(strings.TrimSpace(alert.SourceID))
-	return strings.Contains(sourceID, "sanctions") || strings.Contains(sourceID, "ofac-sdn")
+	return strings.Contains(sourceID, "sanctions") || strings.Contains(sourceID, "ofac-sdn") || sourceID == "opensanctions"
 }
 
 func isConflictDataSource(alert model.Alert) bool {

@@ -4756,6 +4756,28 @@
     "max_items": 50
   },
   {
+    "type": "opensanctions-json",
+    "source": {
+      "source_id": "opensanctions",
+      "authority_name": "OpenSanctions",
+      "country": "Global",
+      "country_code": "INT",
+      "region": "International",
+      "authority_type": "public_safety_program",
+      "base_url": "https://www.opensanctions.org"
+    },
+    "feed_url": "https://data.opensanctions.org/datasets/latest/sanctions/index.json",
+    "category": "terrorism_tip",
+    "region_tag": "INT",
+    "lat": 52.52,
+    "lng": 13.41,
+    "max_items": 50,
+    "reporting": {
+      "label": "OpenSanctions Search",
+      "url": "https://www.opensanctions.org/"
+    }
+  },
+  {
     "type": "rss",
     "source": {
       "source_id": "eu-sanctions",
@@ -5856,6 +5878,40 @@
       "strait of hormuz",
       "malacca"
     ]
+  },
+  {
+    "type": "imb-piracy-html",
+    "fetch_mode": "browser",
+    "source": {
+      "source_id": "imb-piracy-warnings",
+      "authority_name": "IMB Piracy Reporting Centre",
+      "country": "United Kingdom",
+      "country_code": "GB",
+      "region": "International",
+      "authority_type": "public_safety_program",
+      "base_url": "https://icc-ccs.org"
+    },
+    "feed_url": "https://icc-ccs.org/piracy-and-armed-robbery-prone-areas-and-warnings/",
+    "category": "maritime_security",
+    "region_tag": "INT",
+    "lat": 51.51,
+    "lng": -0.12,
+    "max_items": 20,
+    "include_keywords": [
+      "piracy",
+      "hijack",
+      "kidnap",
+      "houthi",
+      "vigilant",
+      "advised",
+      "warning",
+      "robbery",
+      "attack"
+    ],
+    "reporting": {
+      "label": "IMB Piracy Reporting Centre",
+      "url": "https://icc-ccs.org/imb-piracy-reporting-centre-2/"
+    }
   },
   {
     "type": "rss",

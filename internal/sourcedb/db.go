@@ -2098,7 +2098,7 @@ func defaultSourceQuality(src model.RegistrySource) float64 {
 	case "rss", "travelwarning-atom":
 		score = 0.9
 	case "kev-json", "nvd-json", "epss-csv", "interpol-red-json", "interpol-yellow-json", "travelwarning-json",
-		"un-sanctions-xml", "ofac-sdn-xml", "feodo-json", "urlhaus-csv":
+		"un-sanctions-xml", "ofac-sdn-xml", "opensanctions-json", "feodo-json", "urlhaus-csv", "imb-piracy-html":
 		score = 0.95
 	case "html-list":
 		score = 0.62

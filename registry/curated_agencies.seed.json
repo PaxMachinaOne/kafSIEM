@@ -485,5 +485,58 @@
       "label": "OFAC Sanctions Search",
       "url": "https://sanctionssearch.ofac.treas.gov/"
     }
+  },
+  {
+    "type": "opensanctions-json",
+    "source": {
+      "source_id": "opensanctions",
+      "authority_name": "OpenSanctions",
+      "country": "Global",
+      "country_code": "INT",
+      "region": "International",
+      "authority_type": "public_safety_program",
+      "base_url": "https://www.opensanctions.org",
+      "scope": "international",
+      "is_curated": true,
+      "is_high_value": true,
+      "language_code": "en"
+    },
+    "feed_url": "https://data.opensanctions.org/datasets/latest/sanctions/index.json",
+    "category": "terrorism_tip",
+    "region_tag": "INT",
+    "lat": 52.52,
+    "lng": 13.41,
+    "max_items": 50,
+    "reporting": {
+      "label": "OpenSanctions Search",
+      "url": "https://www.opensanctions.org/"
+    }
+  },
+  {
+    "type": "imb-piracy-html",
+    "fetch_mode": "browser",
+    "source": {
+      "source_id": "imb-piracy-warnings",
+      "authority_name": "IMB Piracy Reporting Centre",
+      "country": "United Kingdom",
+      "country_code": "GB",
+      "region": "International",
+      "authority_type": "public_safety_program",
+      "base_url": "https://icc-ccs.org",
+      "scope": "international",
+      "is_curated": true,
+      "is_high_value": true,
+      "language_code": "en"
+    },
+    "feed_url": "https://icc-ccs.org/piracy-and-armed-robbery-prone-areas-and-warnings/",
+    "category": "maritime_security",
+    "region_tag": "INT",
+    "lat": 51.51,
+    "lng": -0.12,
+    "max_items": 20,
+    "reporting": {
+      "label": "IMB Piracy Reporting Centre",
+      "url": "https://icc-ccs.org/imb-piracy-reporting-centre-2/"
+    }
   }
 ]
