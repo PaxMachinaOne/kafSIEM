@@ -12,6 +12,7 @@ import (
 
 	"github.com/scalytics/kafSIEM/internal/collector/config"
 	"github.com/scalytics/kafSIEM/internal/collector/model"
+	"github.com/scalytics/kafSIEM/internal/collector/normalize"
 )
 
 func Write(cfg config.Config, active []model.Alert, filtered []model.Alert, state []model.Alert, sourceHealth []model.SourceHealthEntry, duplicateAudit model.DuplicateAudit, replacementQueue []model.SourceReplacementCandidate) error {
@@ -29,7 +30,11 @@ func WriteWithTotal(cfg config.Config, active []model.Alert, filtered []model.Al
 			return err
 		}
 	}
+	active, incidents := normalize.ApplyIncidentLinks(active)
 	if err := writeJSON(cfg.OutputPath, active); err != nil {
+		return err
+	}
+	if err := writeJSON(incidentsOutputPath(cfg.OutputPath), incidents); err != nil {
 		return err
 	}
 	if err := writeJSON(cfg.FilteredOutputPath, filtered); err != nil {
@@ -64,6 +69,10 @@ func WriteZoneBriefings(path string, briefings []model.ZoneBriefingRecord) error
 		return err
 	}
 	return writeJSON(path, briefings)
+}
+
+func incidentsOutputPath(alertsPath string) string {
+	return filepath.Join(filepath.Dir(alertsPath), "incidents.json")
 }
 
 func writeJSON(path string, value any) error {

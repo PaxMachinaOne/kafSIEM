@@ -43,6 +43,17 @@
 		}
 	}
 
+	handle /incidents.json {
+		route {
+			root * /var/lib/kafsiem
+			file_server {
+				pass_thru
+			}
+			root * /srv
+			file_server
+		}
+	}
+
 	handle /alerts-filtered.json {
 		route {
 			root * /var/lib/kafsiem
