@@ -11,18 +11,44 @@ import {
 } from "@/lib/attack-types";
 import { formatLinkReason, geographyLabel, isGeographyReason } from "@/lib/incident-links";
 import { detectSpikes, type ActivitySpike } from "@/lib/activity-spikes";
+import { countryRegion } from "@/lib/country-centroids";
 import type { Alert } from "@/types/alert";
 import type { IncidentSummary } from "@/types/incident";
 
 interface Props {
   alerts: Alert[];
   historicalAlerts: Alert[];
+  regionFilter: string;
   onSelectIncident: (incident: IncidentSummary) => void;
+  onPreviewIncident?: (incident: IncidentSummary | null) => void;
 }
 
 const SPIKE_RECENCY_MS = 48 * 60 * 60 * 1000;
 
-export function IncidentRelationsPanel({ alerts, historicalAlerts, onSelectIncident }: Props) {
+// The relations list is global while the map honors the region filter; flag
+// clusters whose event geography falls entirely outside the current map view.
+function incidentOutsideRegion(incident: IncidentSummary, regionFilter: string): boolean {
+  if (regionFilter === "all" || !incident.countries?.length) return false;
+  if (regionFilter.startsWith("country:")) {
+    return !incident.countries.includes(regionFilter.slice(8));
+  }
+  return !incident.countries.some((code) => {
+    const region = countryRegion(code);
+    if (!region) return false;
+    if (regionFilter === "Asia-Pacific") {
+      return region === "Asia-Pacific" || region === "Asia" || region === "Oceania";
+    }
+    return region === regionFilter;
+  });
+}
+
+export function IncidentRelationsPanel({
+  alerts,
+  historicalAlerts,
+  regionFilter,
+  onSelectIncident,
+  onPreviewIncident,
+}: Props) {
   const { incidents, isLoading, isAvailable } = useIncidents(100);
   const [attackFilter, setAttackFilter] = useState<AttackType | "all">("all");
 
@@ -99,7 +125,9 @@ export function IncidentRelationsPanel({ alerts, historicalAlerts, onSelectIncid
               key={incident.incident_id}
               incident={incident}
               spike={findIncidentSpike(incident, spikesByCountry)}
+              outsideRegion={incidentOutsideRegion(incident, regionFilter)}
               onSelectIncident={onSelectIncident}
+              onPreviewIncident={onPreviewIncident}
             />
           ))
         )}
@@ -128,11 +156,15 @@ function findIncidentSpike(
 function IncidentRelationCard({
   incident,
   spike,
+  outsideRegion,
   onSelectIncident,
+  onPreviewIncident,
 }: {
   incident: IncidentSummary;
   spike: ActivitySpike | null;
+  outsideRegion: boolean;
   onSelectIncident: (incident: IncidentSummary) => void;
+  onPreviewIncident?: (incident: IncidentSummary | null) => void;
 }) {
   const attackType = normalizeAttackType(incident.attack_type);
   const sourceCount = incident.source_count ?? 0;
@@ -149,6 +181,10 @@ function IncidentRelationCard({
     <button
       type="button"
       onClick={() => onSelectIncident(incident)}
+      onMouseEnter={() => onPreviewIncident?.(incident)}
+      onMouseLeave={() => onPreviewIncident?.(null)}
+      onFocus={() => onPreviewIncident?.(incident)}
+      onBlur={() => onPreviewIncident?.(null)}
       className="w-full rounded-xl border border-siem-border bg-siem-panel-strong px-3 py-3 text-left transition-colors hover:border-siem-accent/35 hover:bg-siem-accent/8"
     >
       <div className="flex items-start justify-between gap-2">
@@ -169,6 +205,11 @@ function IncidentRelationCard({
                 }`}
               >
                 Reporting spike ×{spike.ratio} ({spike.countryCode})
+              </span>
+            ) : null}
+            {outsideRegion ? (
+              <span className="rounded-full border border-siem-border px-2 py-0.5 text-4xs uppercase tracking-[0.14em] text-siem-muted/80">
+                Outside map region
               </span>
             ) : null}
           </div>

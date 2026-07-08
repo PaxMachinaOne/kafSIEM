@@ -16,6 +16,7 @@ import { useIncidentDetail } from "@/hooks/useIncidentDetail";
 import type { ConflictCountryFocus } from "@/types/current-conflicts";
 import type { IncidentSummary } from "@/types/incident";
 import { alertMatchesRegionFilter } from "@/lib/regions";
+import { withCentroidCoords } from "@/lib/country-centroids";
 import { alertMatchesConflictLens, getConflictLensById } from "@/lib/conflict-lenses";
 import type { Alert, AlertCategory } from "@/types/alert";
 import { isIncidentMember } from "@/lib/incident-links";
@@ -94,6 +95,7 @@ export default function App() {
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>(null);
   const [incidentFilter, setIncidentFilter] = useState(false);
   const [selectedIncident, setSelectedIncident] = useState<IncidentSummary | null>(null);
+  const [previewIncident, setPreviewIncident] = useState<IncidentSummary | null>(null);
   const [leftPanel, setLeftPanel] = useState<"intel" | "relations">("intel");
   const [regionFilter, setRegionFilter] = useState<string>("Europe");
   const [conflictLensId, setConflictLensId] = useState<string | null>(null);
@@ -143,6 +145,23 @@ export default function App() {
     }
     return [...byID.values()].sort((a, b) => new Date(b.last_seen).getTime() - new Date(a.last_seen).getTime());
   }, [alerts, selectedIncident, selectedIncidentAlertIds, selectedIncidentDetail?.alerts, stateAlerts]);
+  // Map variants: ungeocoded members fall back to their event-country
+  // centroid so every cluster member is visible when focused or previewed.
+  const selectedIncidentMapAlerts = useMemo(
+    () => selectedIncidentAlerts.map(withCentroidCoords),
+    [selectedIncidentAlerts],
+  );
+  const previewIncidentAlerts = useMemo(() => {
+    if (!previewIncident || selectedIncident) return [];
+    const ids = new Set(previewIncident.alert_ids);
+    const byID = new Map<string, Alert>();
+    for (const alert of [...alerts, ...stateAlerts]) {
+      if (ids.has(alert.alert_id) && !byID.has(alert.alert_id)) {
+        byID.set(alert.alert_id, withCentroidCoords(alert));
+      }
+    }
+    return [...byID.values()];
+  }, [alerts, previewIncident, selectedIncident, stateAlerts]);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -418,11 +437,13 @@ export default function App() {
     // the map and queue stay pinned to the incident members.
     if (next === "intel") {
       setSelectedIncident(null);
+      setPreviewIncident(null);
     }
   }, []);
 
   const handleIncidentSelect = useCallback((incident: IncidentSummary) => {
     setSelectedIncident(incident);
+    setPreviewIncident(null);
     setSelectedId(incident.primary_alert_id);
     setSelectedSourceIds([]);
     setCategoryFilter("all");
@@ -498,7 +519,9 @@ export default function App() {
               <IncidentRelationsPanel
                 alerts={alerts}
                 historicalAlerts={stateAlerts}
+                regionFilter={regionFilter}
                 onSelectIncident={handleIncidentSelect}
+                onPreviewIncident={setPreviewIncident}
               />
             </Suspense>
           ) : (
@@ -533,8 +556,9 @@ export default function App() {
         <div className={`${mobilePane === "map" ? "block" : "hidden"} md:block min-h-0 flex-1 min-w-0`}>
           <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-siem-muted">Loading map...</div>}>
             <GlobeView
-              alerts={selectedIncident ? selectedIncidentAlerts : scopedAlerts}
-              historicalAlerts={selectedIncident ? selectedIncidentAlerts : scopedStateAlerts}
+              alerts={selectedIncident ? selectedIncidentMapAlerts : scopedAlerts}
+              historicalAlerts={selectedIncident ? selectedIncidentMapAlerts : scopedStateAlerts}
+              previewAlerts={previewIncidentAlerts}
               selectedId={selectedId}
               onSelect={setSelectedId}
               regionFilter={regionFilter}

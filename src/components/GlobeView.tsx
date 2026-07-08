@@ -128,6 +128,7 @@ interface Props {
   visibleHistoryAlertIds: string[];
   onSelectSourceIdsChange?: (sourceIds: string[]) => void;
   selectedSourceIds?: string[];
+  previewAlerts?: Alert[];
 }
 
 /* ── Component ────────────────────────────────────────────────────── */
@@ -145,9 +146,11 @@ export function GlobeView({
   selectedSourceIds = [],
   visibleNowAlertIds,
   visibleHistoryAlertIds,
+  previewAlerts = [],
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
+  const previewLayerRef = useRef<L.LayerGroup | null>(null);
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null);
   const markerLookup = useRef<Map<string, L.CircleMarker>>(new Map());
   const markerAlertLookup = useRef<Map<number, Alert>>(new Map());
@@ -393,6 +396,44 @@ export function GlobeView({
     () => combinedVisibleAlerts.filter((a) => !(a.lat === 0 && a.lng === 0)),
     [combinedVisibleAlerts],
   );
+
+  // Cluster hover preview: reveal member locations regardless of the active
+  // region filter so out-of-region clusters are visible before the analyst
+  // commits to a click.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (previewLayerRef.current) {
+      map.removeLayer(previewLayerRef.current);
+      previewLayerRef.current = null;
+    }
+    if (previewAlerts.length === 0) return;
+    const layer = L.layerGroup();
+    for (const alert of previewAlerts) {
+      if (alert.lat === 0 && alert.lng === 0) continue;
+      L.circleMarker([alert.lat, alert.lng], {
+        radius: 10,
+        fillColor: severityHex(alert.severity),
+        color: "#f8fafc",
+        weight: 2,
+        dashArray: "4 3",
+        fillOpacity: 0.55,
+      })
+        .bindTooltip(
+          `<strong>${alert.source.authority_name}</strong><br/>${alert.title.slice(0, 80)}`,
+          { className: "siem-tooltip", direction: "top", offset: L.point(0, -6) },
+        )
+        .addTo(layer);
+    }
+    layer.addTo(map);
+    previewLayerRef.current = layer;
+    return () => {
+      if (previewLayerRef.current) {
+        map.removeLayer(previewLayerRef.current);
+        previewLayerRef.current = null;
+      }
+    };
+  }, [previewAlerts]);
 
   const countryFocusCenter = useMemo(() => {
     if (countryFilterCode === "") return null as [number, number] | null;
