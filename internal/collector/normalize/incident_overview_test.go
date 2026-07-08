@@ -14,6 +14,8 @@ func TestBuildIncidentOverview(t *testing.T) {
 		AlertIDs:       []string{"a1", "a2"},
 		LinkReasons:    []string{"shared_cve:CVE-2026-1234"},
 		Countries:      []string{"SO"},
+		Entities:       []string{"Regional Cell"},
+		CVEs:           []string{"CVE-2026-1234"},
 	}
 	alerts := []model.Alert{
 		{
@@ -54,8 +56,11 @@ func TestBuildIncidentOverview(t *testing.T) {
 	if len(timeline) != 2 || timeline[0].AlertID != "a1" {
 		t.Fatalf("unexpected timeline: %#v", timeline)
 	}
-	if len(graph.Nodes) != 2 || len(graph.Edges) != 1 {
-		t.Fatalf("unexpected graph: nodes=%#v edges=%#v", graph.Nodes, graph.Edges)
+	if len(graph.Nodes) < 4 {
+		t.Fatalf("expected alert + entity/country nodes, got %#v", graph.Nodes)
+	}
+	if len(graph.Edges) < 2 {
+		t.Fatalf("expected corroboration and relation edges, got %#v", graph.Edges)
 	}
 }
 

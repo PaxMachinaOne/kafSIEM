@@ -24,6 +24,9 @@ const GlobeView = lazy(() => import("@/components/GlobeView").then((mod) => ({ d
 const AlertFeed = lazy(() => import("@/components/AlertFeed").then((mod) => ({ default: mod.AlertFeed })));
 const AlertDetail = lazy(() => import("@/components/AlertDetail").then((mod) => ({ default: mod.AlertDetail })));
 const FeedDirectory = lazy(() => import("@/components/FeedDirectory").then((mod) => ({ default: mod.FeedDirectory })));
+const IncidentRelationsPanel = lazy(() =>
+  import("@/components/IncidentRelationsPanel").then((mod) => ({ default: mod.IncidentRelationsPanel })),
+);
 
 function normalizeConflictRegion(raw: string): string {
   const value = raw.trim().toLowerCase();
@@ -86,6 +89,7 @@ export default function App() {
   const [categoryFilter, setCategoryFilter] = useState<AlertCategory | "all">("all");
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>(null);
   const [incidentFilter, setIncidentFilter] = useState(false);
+  const [leftPanel, setLeftPanel] = useState<"intel" | "relations">("intel");
   const [regionFilter, setRegionFilter] = useState<string>("Europe");
   const [conflictLensId, setConflictLensId] = useState<string | null>(null);
   const [conflictCountryFocus, setConflictCountryFocus] = useState<ConflictCountryFocus | null>(null);
@@ -391,8 +395,8 @@ export default function App() {
         onSelectedSourceIdsChange={handleSourceSelectionChange}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        activeMenu="overview"
-        onMenuChange={() => {}}
+        activeMenu={leftPanel === "relations" ? "relations" : "overview"}
+        onMenuChange={(view) => setLeftPanel(view === "relations" ? "relations" : "intel")}
         alerts={alerts}
       />
 
@@ -400,26 +404,37 @@ export default function App() {
       <div className="relative flex min-h-0 flex-1 gap-3 px-3 pb-3 pt-3 md:px-4">
         {/* Left panel — intel overview */}
         <div className={`${mobilePane === "intel" ? "block" : "hidden"} md:block w-full md:w-[20rem] md:shrink-0 min-h-0`}>
-          <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-siem-muted">Loading intel panel...</div>}>
-            <FeedDirectory
-              view="overview"
-              alerts={regionScopedAlerts}
-              historicalAlerts={stateRegionScopedAlerts}
-              sourceHealth={sourceHealth}
-              isLoading={isSourceHealthLoading}
-              selectedSourceIds={selectedSourceIds}
-              onSelectSourceIdsChange={handleSourceSelectionChange}
-              categoryFilter={categoryFilter}
-              onSelectCategory={handleCategorySelect}
-              regionFilter={regionFilter}
-              onSelectCountry={handleCountrySelect}
-              severityFilter={severityFilter}
-              onSeverityFilterChange={setSeverityFilter}
-              incidentFilter={incidentFilter}
-              onIncidentFilterChange={setIncidentFilter}
-              onSearchTerm={setSearchQuery}
-            />
-          </Suspense>
+          {leftPanel === "relations" ? (
+            <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-siem-muted">Loading relations...</div>}>
+              <IncidentRelationsPanel
+                onSelectPrimaryAlert={(alertId) => {
+                  setSelectedId(alertId);
+                  setMobilePane("alerts");
+                }}
+              />
+            </Suspense>
+          ) : (
+            <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-siem-muted">Loading intel panel...</div>}>
+              <FeedDirectory
+                view="overview"
+                alerts={regionScopedAlerts}
+                historicalAlerts={stateRegionScopedAlerts}
+                sourceHealth={sourceHealth}
+                isLoading={isSourceHealthLoading}
+                selectedSourceIds={selectedSourceIds}
+                onSelectSourceIdsChange={handleSourceSelectionChange}
+                categoryFilter={categoryFilter}
+                onSelectCategory={handleCategorySelect}
+                regionFilter={regionFilter}
+                onSelectCountry={handleCountrySelect}
+                severityFilter={severityFilter}
+                onSeverityFilterChange={setSeverityFilter}
+                incidentFilter={incidentFilter}
+                onIncidentFilterChange={setIncidentFilter}
+                onSearchTerm={setSearchQuery}
+              />
+            </Suspense>
+          )}
         </div>
 
         {/* Center — map */}

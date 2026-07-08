@@ -78,7 +78,10 @@ func BuildIncidentOverview(summary model.IncidentSummary, alerts []model.Alert) 
 		return timeline[i].FirstSeen < timeline[j].FirstSeen
 	})
 
-	nodes := make([]model.IncidentGraphNode, 0, len(timeline))
+	nodes := make([]model.IncidentGraphNode, 0)
+	edges := make([]model.IncidentGraphEdge, 0)
+	primaryID := strings.TrimSpace(summary.PrimaryAlertID)
+
 	for _, entry := range timeline {
 		alert := byID[entry.AlertID]
 		label := alert.Source.AuthorityName
@@ -96,27 +99,84 @@ func BuildIncidentOverview(summary model.IncidentSummary, alerts []model.Alert) 
 			Lat:         alert.Lat,
 			Lng:         alert.Lng,
 		})
+		if entry.AlertID != primaryID && primaryID != "" {
+			edges = append(edges, model.IncidentGraphEdge{
+				From:   entry.AlertID,
+				To:     primaryID,
+				Reason: pickCorroborationReason(summary.LinkReasons),
+			})
+		}
 	}
 
-	edges := make([]model.IncidentGraphEdge, 0)
-	primaryID := strings.TrimSpace(summary.PrimaryAlertID)
-	reasons := summary.LinkReasons
-	if len(reasons) == 0 {
-		reasons = []string{"incident:cluster"}
-	}
-	primaryReason := reasons[0]
-	for _, entry := range timeline {
-		if entry.AlertID == primaryID {
-			continue
-		}
-		edges = append(edges, model.IncidentGraphEdge{
-			From:   entry.AlertID,
-			To:     primaryID,
-			Reason: primaryReason,
+	for _, cve := range summary.CVEs {
+		nodeID := "cve:" + strings.ToUpper(strings.TrimSpace(cve))
+		nodes = append(nodes, model.IncidentGraphNode{
+			ID:    nodeID,
+			Kind:  "cve",
+			Label: nodeID,
 		})
+		for _, entry := range timeline {
+			edges = append(edges, model.IncidentGraphEdge{
+				From:   entry.AlertID,
+				To:     nodeID,
+				Reason: "exploits:" + nodeID,
+			})
+		}
+	}
+
+	for _, entity := range summary.Entities {
+		nodeID := "actor:" + strings.TrimSpace(entity)
+		nodes = append(nodes, model.IncidentGraphNode{
+			ID:    nodeID,
+			Kind:  "actor",
+			Label: entity,
+		})
+		for _, entry := range timeline {
+			edges = append(edges, model.IncidentGraphEdge{
+				From:   entry.AlertID,
+				To:     nodeID,
+				Reason: "attributed_to:" + entity,
+			})
+		}
+	}
+
+	for _, code := range geo.CountryCodes {
+		nodeID := "country:" + code
+		label := code
+		if len(geo.Countries) > 0 {
+			for i, countryCode := range geo.CountryCodes {
+				if countryCode == code && i < len(geo.Countries) {
+					label = geo.Countries[i]
+					break
+				}
+			}
+		}
+		nodes = append(nodes, model.IncidentGraphNode{
+			ID:          nodeID,
+			Kind:        "country",
+			Label:       label,
+			CountryCode: code,
+		})
+		for _, entry := range timeline {
+			if entry.CountryCode != code {
+				continue
+			}
+			edges = append(edges, model.IncidentGraphEdge{
+				From:   entry.AlertID,
+				To:     nodeID,
+				Reason: "located_in:" + code,
+			})
+		}
 	}
 
 	return geo, timeline, model.IncidentGraph{Nodes: nodes, Edges: uniqueIncidentEdges(edges)}
+}
+
+func pickCorroborationReason(reasons []string) string {
+	if len(reasons) == 0 {
+		return "incident:cluster"
+	}
+	return reasons[0]
 }
 
 func uniqueIncidentEdges(edges []model.IncidentGraphEdge) []model.IncidentGraphEdge {
@@ -132,4 +192,3 @@ func uniqueIncidentEdges(edges []model.IncidentGraphEdge) []model.IncidentGraphE
 	}
 	return out
 }
-

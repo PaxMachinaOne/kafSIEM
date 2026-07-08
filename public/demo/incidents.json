@@ -15,9 +15,32 @@
       "link_reasons": ["shared_cve:CVE-2026-12345"],
       "cves": ["CVE-2026-12345"],
       "countries": ["DE", "US"],
+      "attack_type": "cyber",
       "first_seen": "2026-04-16T09:30:00Z",
       "last_seen": "2026-04-16T10:15:00Z"
+    },
+    {
+      "incident_id": "inc-demo-shabaab-2026",
+      "title": "Al-Shabaab Mogadishu market attack corroborated across conflict and terror feeds",
+      "category": "terrorism_tip",
+      "severity": "critical",
+      "member_count": 2,
+      "primary_alert_id": "terror-tip-shabaab-2026",
+      "alert_ids": [
+        "terror-tip-shabaab-2026",
+        "conflict-acled-shabaab-2026"
+      ],
+      "link_reasons": [
+        "cross_category_entity:Al-Shabaab",
+        "shared_country:SO",
+        "anchor:known_actor:Al-Shabaab"
+      ],
+      "entities": ["Al-Shabaab"],
+      "countries": ["SO"],
+      "attack_type": "terror",
+      "first_seen": "2026-04-12T08:00:00Z",
+      "last_seen": "2026-04-12T10:30:00Z"
     }
   ],
-  "count": 1
+  "count": 2
 }

@@ -46,12 +46,12 @@ func (db *DB) SaveOSINTIncidents(ctx context.Context, incidents []model.Incident
 		if _, err := tx.ExecContext(ctx, `
 INSERT INTO osint_incidents (
   incident_id, title, category, severity, member_count, primary_alert_id,
-  alert_ids_json, link_reasons_json, cves_json, entities_json, countries_json,
+  alert_ids_json, link_reasons_json, cves_json, entities_json, countries_json, attack_type,
   first_seen, last_seen, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `, incident.IncidentID, incident.Title, incident.Category, incident.Severity, incident.MemberCount,
 			incident.PrimaryAlertID, string(alertIDsJSON), string(reasonsJSON), string(cvesJSON),
-			string(entitiesJSON), string(countriesJSON), incident.FirstSeen, incident.LastSeen, updatedAt); err != nil {
+			string(entitiesJSON), string(countriesJSON), incident.AttackType, incident.FirstSeen, incident.LastSeen, updatedAt); err != nil {
 			return fmt.Errorf("insert osint incident %s: %w", incident.IncidentID, err)
 		}
 	}
@@ -71,7 +71,7 @@ func (db *DB) ListOSINTIncidents(ctx context.Context, limit int) ([]model.Incide
 	}
 	rows, err := db.sql.QueryContext(ctx, `
 SELECT incident_id, title, category, severity, member_count, primary_alert_id,
-       alert_ids_json, link_reasons_json, cves_json, entities_json, countries_json, first_seen, last_seen
+       alert_ids_json, link_reasons_json, cves_json, entities_json, countries_json, attack_type, first_seen, last_seen
   FROM osint_incidents
  ORDER BY last_seen DESC, incident_id ASC
  LIMIT ?
@@ -103,7 +103,7 @@ func (db *DB) GetOSINTIncident(ctx context.Context, incidentID string) (OSINTInc
 
 	row := db.sql.QueryRowContext(ctx, `
 SELECT incident_id, title, category, severity, member_count, primary_alert_id,
-       alert_ids_json, link_reasons_json, cves_json, entities_json, countries_json, first_seen, last_seen
+       alert_ids_json, link_reasons_json, cves_json, entities_json, countries_json, attack_type, first_seen, last_seen
   FROM osint_incidents
  WHERE incident_id = ?
 `, incidentID)
@@ -174,7 +174,7 @@ func scanIncidentSummaryRow(row incidentScanner) (model.IncidentSummary, error) 
 	var alertIDsJSON, reasonsJSON, cvesJSON, entitiesJSON, countriesJSON string
 	if err := row.Scan(
 		&item.IncidentID, &item.Title, &item.Category, &item.Severity, &item.MemberCount,
-		&item.PrimaryAlertID, &alertIDsJSON, &reasonsJSON, &cvesJSON, &entitiesJSON, &countriesJSON,
+		&item.PrimaryAlertID, &alertIDsJSON, &reasonsJSON, &cvesJSON, &entitiesJSON, &countriesJSON, &item.AttackType,
 		&item.FirstSeen, &item.LastSeen,
 	); err != nil {
 		return model.IncidentSummary{}, err

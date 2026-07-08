@@ -10,7 +10,7 @@ import type { Alert } from "@/types/alert";
 import { alertMatchesRegionFilter } from "@/lib/regions";
 import { useCurrentConflicts } from "@/hooks/useCurrentConflicts";
 
-type MenuView = "overview" | "feeds" | "sources" | "health";
+type MenuView = "overview" | "relations" | "feeds" | "sources" | "health";
 
 interface Props {
   regionFilter: string;
@@ -774,11 +774,28 @@ export function Header({
   onMenuChange,
   alerts,
 }: Props) {
-  void activeMenu;
-  void onMenuChange;
   return (
     <header className="border-b border-siem-border bg-siem-panel/96 px-4 py-3 md:px-5">
       <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap gap-2">
+          {([
+            ["overview", "Overview"],
+            ["relations", "Relations"],
+          ] as const).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => onMenuChange(id)}
+              className={`rounded-full border px-3 py-1.5 text-2xs uppercase tracking-[0.18em] transition-colors ${
+                activeMenu === id
+                  ? "border-siem-accent/45 bg-siem-accent/12 text-siem-text"
+                  : "border-siem-border text-siem-muted hover:border-siem-accent/30"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <div className="grid gap-3 md:grid-cols-[auto_minmax(18rem,1fr)_auto] md:items-center">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-orange-500/40 bg-orange-500/12 text-orange-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">

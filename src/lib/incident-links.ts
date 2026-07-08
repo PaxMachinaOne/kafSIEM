@@ -46,6 +46,9 @@ export function formatLinkReason(reason: string): string {
   if (reason.startsWith("shared_entity:")) {
     return `Shared actor: ${reason.slice("shared_entity:".length)}`;
   }
+  if (reason.startsWith("cross_category_entity:")) {
+    return `Cross-domain actor: ${reason.slice("cross_category_entity:".length)}`;
+  }
   if (reason.startsWith("cross_source:jaccard:")) {
     return `Cross-source match (${reason.slice("cross_source:jaccard:".length)})`;
   }

@@ -323,6 +323,7 @@ CREATE TABLE IF NOT EXISTS osint_incidents (
   cves_json TEXT NOT NULL DEFAULT '[]',
   entities_json TEXT NOT NULL DEFAULT '[]',
   countries_json TEXT NOT NULL DEFAULT '[]',
+  attack_type TEXT NOT NULL DEFAULT 'general',
   first_seen TEXT NOT NULL,
   last_seen TEXT NOT NULL,
   updated_at TEXT NOT NULL

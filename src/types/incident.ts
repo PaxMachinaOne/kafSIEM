@@ -12,6 +12,7 @@ export interface IncidentSummary {
   cves?: string[];
   entities?: string[];
   countries?: string[];
+  attack_type?: string;
   first_seen: string;
   last_seen: string;
 }

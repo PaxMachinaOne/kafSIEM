@@ -40,6 +40,36 @@ export function IncidentRelationGraph({ detail, currentAlertId, onSelectAlert }:
             {nodes.map((node) => {
               const isCurrent = node.id === currentAlertId;
               const isPrimary = node.id === primaryId || node.role === "primary";
+              const isAlert = node.kind === "alert" || !node.kind;
+              const kindLabel =
+                node.kind === "actor"
+                  ? "actor"
+                  : node.kind === "cve"
+                    ? "vulnerability"
+                    : node.kind === "country"
+                      ? "geography"
+                      : isPrimary
+                        ? "primary"
+                        : "member";
+              const content = (
+                <>
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-siem-text truncate">{node.label}</div>
+                    <div className="text-xxs text-siem-muted">
+                      {node.country_code || kindLabel}
+                      {isAlert ? ` · ${isPrimary ? "primary" : "member"}` : ""}
+                    </div>
+                  </div>
+                  {isAlert ? <span className="shrink-0 font-mono text-xxs uppercase text-siem-muted">{node.severity}</span> : null}
+                </>
+              );
+              if (!isAlert) {
+                return (
+                  <div key={node.id} className="rounded-md border border-dashed border-siem-border/80 px-2.5 py-2">
+                    {content}
+                  </div>
+                );
+              }
               return (
                 <button
                   key={node.id}
@@ -49,13 +79,7 @@ export function IncidentRelationGraph({ detail, currentAlertId, onSelectAlert }:
                     isCurrent ? "border-siem-accent/50 bg-siem-accent/10" : "border-siem-border/70 hover:border-siem-accent/30"
                   }`}
                 >
-                  <div className="min-w-0">
-                    <div className="text-xs font-medium text-siem-text truncate">{node.label}</div>
-                    <div className="text-xxs text-siem-muted">
-                      {node.country_code || "—"} · {isPrimary ? "primary" : "member"}
-                    </div>
-                  </div>
-                  <span className="shrink-0 font-mono text-xxs uppercase text-siem-muted">{node.severity}</span>
+                  {content}
                 </button>
               );
             })}

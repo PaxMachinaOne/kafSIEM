@@ -152,19 +152,19 @@ func ApplyIncidentLinks(alerts []model.Alert) ([]model.Alert, []model.IncidentSu
 		for j := i + 1; j < len(fps); j++ {
 			left := fps[i]
 			right := fps[j]
-			if !entityLinkCategory(left.alert.Category) || left.alert.Category != right.alert.Category {
-				continue
-			}
 			if hoursApart(left.ts, right.ts) > entityIncidentWindowHours {
 				continue
 			}
 			shared := intersectStrings(left.actors, right.actors)
-			if len(shared) == 0 {
+			if len(shared) == 0 || !shouldEntityLink(left, right, shared) {
 				continue
 			}
 			union.union(left.alert.AlertID, right.alert.AlertID)
 			for _, actor := range shared {
 				reason := "shared_entity:" + actor
+				if left.alert.Category != right.alert.Category {
+					reason = "cross_category_entity:" + actor
+				}
 				reasonsByAlert[left.alert.AlertID] = appendUniqueString(reasonsByAlert[left.alert.AlertID], reason)
 				reasonsByAlert[right.alert.AlertID] = appendUniqueString(reasonsByAlert[right.alert.AlertID], reason)
 			}
@@ -220,7 +220,7 @@ func ApplyIncidentLinks(alerts []model.Alert) ([]model.Alert, []model.IncidentSu
 				break
 			}
 		}
-		summaries = append(summaries, model.IncidentSummary{
+		summary := model.IncidentSummary{
 			IncidentID:     incidentID,
 			Title:          primary.Title,
 			Category:       primary.Category,
@@ -234,7 +234,9 @@ func ApplyIncidentLinks(alerts []model.Alert) ([]model.Alert, []model.IncidentSu
 			Countries:      sharedCountries,
 			FirstSeen:      earliestSeen(memberIDs, alertIndex),
 			LastSeen:       latestSeen(memberIDs, alertIndex),
-		})
+		}
+		summary.AttackType = ClassifyAttackType(summary, memberAlerts)
+		summaries = append(summaries, summary)
 	}
 
 	sort.Slice(summaries, func(i, j int) bool {
@@ -365,6 +367,23 @@ func collectCountries(memberIDs []string, alertIndex map[string]model.Alert) []s
 		}
 	}
 	return uniqueSorted(out)
+}
+
+func shouldEntityLink(left, right incidentFingerprints, sharedActors []string) bool {
+	leftOK := entityLinkCategory(left.alert.Category)
+	rightOK := entityLinkCategory(right.alert.Category)
+	if !leftOK && !rightOK {
+		return false
+	}
+	if left.alert.Category == right.alert.Category {
+		return true
+	}
+	for _, actor := range sharedActors {
+		if isKnownThreatActor(actor) {
+			return true
+		}
+	}
+	return false
 }
 
 func entityLinkCategory(category string) bool {

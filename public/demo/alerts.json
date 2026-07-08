@@ -112,5 +112,77 @@
       "shared_cves": ["CVE-2026-12345"],
       "shared_countries": ["DE", "US"]
     }
+  },
+  {
+    "alert_id": "terror-tip-shabaab-2026",
+    "source_id": "interpol-terror-tips",
+    "source": {
+      "source_id": "interpol-terror-tips",
+      "authority_name": "Interpol Terrorism Tips",
+      "country": "France",
+      "country_code": "FR",
+      "region": "Europe",
+      "authority_type": "international_org",
+      "base_url": "https://www.interpol.int"
+    },
+    "title": "Al-Shabaab claims responsibility for Mogadishu market attack",
+    "canonical_url": "https://www.interpol.int/terror-tip/shabaab-2026",
+    "first_seen": "2026-04-12T08:00:00Z",
+    "last_seen": "2026-04-12T08:30:00Z",
+    "status": "active",
+    "category": "terrorism_tip",
+    "severity": "critical",
+    "region_tag": "AF",
+    "event_country": "Somalia",
+    "event_country_code": "SO",
+    "lat": 2.04,
+    "lng": 45.34,
+    "freshness_hours": 2,
+    "incident": {
+      "incident_id": "inc-demo-shabaab-2026",
+      "member_count": 2,
+      "primary_alert_id": "terror-tip-shabaab-2026",
+      "role": "primary",
+      "related_alert_ids": ["conflict-acled-shabaab-2026"],
+      "link_reasons": ["cross_category_entity:Al-Shabaab", "shared_country:SO"],
+      "shared_entities": ["Al-Shabaab"],
+      "shared_countries": ["SO"]
+    }
+  },
+  {
+    "alert_id": "conflict-acled-shabaab-2026",
+    "source_id": "acled-africa",
+    "source": {
+      "source_id": "acled-africa",
+      "authority_name": "ACLED",
+      "country": "United States",
+      "country_code": "US",
+      "region": "North America",
+      "authority_type": "ngo",
+      "base_url": "https://acleddata.com"
+    },
+    "title": "Al-Shabaab Mogadishu market attack leaves twelve civilians dead",
+    "canonical_url": "https://acleddata.com/event/shabaab-2026",
+    "first_seen": "2026-04-12T09:15:00Z",
+    "last_seen": "2026-04-12T10:30:00Z",
+    "status": "active",
+    "category": "conflict_monitoring",
+    "severity": "high",
+    "region_tag": "AF",
+    "event_country": "Somalia",
+    "event_country_code": "SO",
+    "lat": 2.04,
+    "lng": 45.34,
+    "freshness_hours": 1,
+    "incident": {
+      "incident_id": "inc-demo-shabaab-2026",
+      "member_count": 2,
+      "primary_alert_id": "terror-tip-shabaab-2026",
+      "role": "member",
+      "related_alert_ids": ["terror-tip-shabaab-2026"],
+      "link_reasons": ["cross_category_entity:Al-Shabaab", "shared_country:SO"],
+      "shared_entities": ["Al-Shabaab"],
+      "shared_countries": ["SO"]
+    }
   }
 ]

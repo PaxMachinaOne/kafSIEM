@@ -55,6 +55,7 @@ type IncidentSummary struct {
 	CVEs           []string `json:"cves,omitempty"`
 	Entities       []string `json:"entities,omitempty"`
 	Countries      []string `json:"countries,omitempty"`
+	AttackType     string   `json:"attack_type,omitempty"`
 	FirstSeen      string   `json:"first_seen"`
 	LastSeen       string   `json:"last_seen"`
 }

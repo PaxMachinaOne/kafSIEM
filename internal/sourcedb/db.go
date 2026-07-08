@@ -151,6 +151,7 @@ func (db *DB) Init(ctx context.Context) error {
 		`ALTER TABLE alerts ADD COLUMN event_geo_source TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE alerts ADD COLUMN event_geo_confidence REAL NOT NULL DEFAULT 0`,
 		`ALTER TABLE osint_incidents ADD COLUMN countries_json TEXT NOT NULL DEFAULT '[]'`,
+		`ALTER TABLE osint_incidents ADD COLUMN attack_type TEXT NOT NULL DEFAULT 'general'`,
 	} {
 		if _, err := db.sql.ExecContext(ctx, stmt); err != nil && !isDuplicateColumnError(err) {
 			return fmt.Errorf("migrate source DB schema: %w", err)
