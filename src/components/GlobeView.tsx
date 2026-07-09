@@ -11,6 +11,7 @@ import "leaflet.markercluster";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import type { Alert } from "@/types/alert";
 import { isIncidentAnchor } from "@/lib/incident-links";
+import { countryCentroid } from "@/lib/country-centroids";
 import { alertMatchesRegionFilter } from "@/lib/regions";
 import { severityHex, textHex } from "@/lib/theme";
 import { loadOverlayDefs, loadOverlay, type OverlayDef, type OverlayId } from "@/lib/map-overlays";
@@ -129,6 +130,7 @@ interface Props {
   onSelectSourceIdsChange?: (sourceIds: string[]) => void;
   selectedSourceIds?: string[];
   previewAlerts?: Alert[];
+  focusAlerts?: Alert[];
 }
 
 /* ── Component ────────────────────────────────────────────────────── */
@@ -147,10 +149,13 @@ export function GlobeView({
   visibleNowAlertIds,
   visibleHistoryAlertIds,
   previewAlerts = [],
+  focusAlerts = [],
 }: Props) {
+  const focusMode = focusAlerts.length > 0;
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const previewLayerRef = useRef<L.LayerGroup | null>(null);
+  const focusSourceLayerRef = useRef<L.LayerGroup | null>(null);
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null);
   const markerLookup = useRef<Map<string, L.CircleMarker>>(new Map());
   const markerAlertLookup = useRef<Map<number, Alert>>(new Map());
@@ -368,18 +373,22 @@ export function GlobeView({
 
   const visibleNowAlerts = useMemo(
     () =>
-      alerts.filter(
-        (a) => visibleNowIdSet.has(a.alert_id) && alertMatchesRegionFilter(a, regionFilter),
-      ),
-    [alerts, regionFilter, visibleNowIdSet],
+      focusMode
+        ? focusAlerts
+        : alerts.filter(
+            (a) => visibleNowIdSet.has(a.alert_id) && alertMatchesRegionFilter(a, regionFilter),
+          ),
+    [alerts, focusAlerts, focusMode, regionFilter, visibleNowIdSet],
   );
 
   const visibleHistoryAlerts = useMemo(
     () =>
-      historicalAlerts.filter(
-        (a) => visibleHistoryIdSet.has(a.alert_id) && alertMatchesRegionFilter(a, regionFilter),
-      ),
-    [historicalAlerts, regionFilter, visibleHistoryIdSet],
+      focusMode
+        ? []
+        : historicalAlerts.filter(
+            (a) => visibleHistoryIdSet.has(a.alert_id) && alertMatchesRegionFilter(a, regionFilter),
+          ),
+    [focusMode, historicalAlerts, regionFilter, visibleHistoryIdSet],
   );
 
   const visibleHistoryAlertsRendered = useMemo(
@@ -434,6 +443,58 @@ export function GlobeView({
       }
     };
   }, [previewAlerts]);
+
+  // Cluster focus: draw each member's reporting source at its country
+  // centroid (hollow marker) with a dashed line to the event location,
+  // so the analyst sees who reported the incident and from where.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (focusSourceLayerRef.current) {
+      map.removeLayer(focusSourceLayerRef.current);
+      focusSourceLayerRef.current = null;
+    }
+    if (focusAlerts.length === 0) return;
+    const layer = L.layerGroup();
+    const seenSources = new Set<string>();
+    for (const alert of focusAlerts) {
+      const sourceCode = (alert.source.country_code || "").toUpperCase();
+      const eventCode = (alert.event_country_code || "").toUpperCase();
+      const centroid = countryCentroid(sourceCode);
+      if (!centroid || sourceCode === eventCode) continue;
+      if (!(alert.lat === 0 && alert.lng === 0)) {
+        L.polyline([[alert.lat, alert.lng], centroid], {
+          color: "#94a3b8",
+          weight: 1,
+          opacity: 0.45,
+          dashArray: "2 5",
+          interactive: false,
+        }).addTo(layer);
+      }
+      const sourceKey = alert.source.source_id || `${sourceCode}:${alert.source.authority_name}`;
+      if (seenSources.has(sourceKey)) continue;
+      seenSources.add(sourceKey);
+      L.circleMarker(centroid, {
+        radius: 7,
+        color: "#94a3b8",
+        weight: 1.5,
+        fillOpacity: 0,
+      })
+        .bindTooltip(
+          `<strong>${escapeHtml(alert.source.authority_name)}</strong><br/>Reporting source · ${escapeHtml(alert.source.country || sourceCode)}`,
+          { className: "siem-tooltip", direction: "top", offset: L.point(0, -6) },
+        )
+        .addTo(layer);
+    }
+    layer.addTo(map);
+    focusSourceLayerRef.current = layer;
+    return () => {
+      if (focusSourceLayerRef.current) {
+        map.removeLayer(focusSourceLayerRef.current);
+        focusSourceLayerRef.current = null;
+      }
+    };
+  }, [focusAlerts]);
 
   const countryFocusCenter = useMemo(() => {
     if (countryFilterCode === "") return null as [number, number] | null;
@@ -702,11 +763,17 @@ export function GlobeView({
         fillOpacity: 0.85,
       });
 
-      const incidentNote = linked
+      const incidentNote = linked && !focusMode
         ? `<br/><span style="opacity:0.85">Linked incident · ${alert.incident?.member_count ?? 0} alerts</span>`
         : "";
+      const header = focusMode
+        ? `${alert.source.authority_name} · ${alert.source.country_code || alert.source.country || "?"}`
+        : alert.source.authority_name;
+      const eventNote = focusMode
+        ? `<br/><span style="opacity:0.85">Event: ${alert.event_country || alert.event_country_code || alert.source.country}</span>`
+        : "";
       marker.bindTooltip(
-        `<strong>${alert.source.authority_name}</strong><br/>${alert.title.slice(0, 80)}${incidentNote}`,
+        `<strong>${header}</strong><br/>${alert.title.slice(0, 80)}${incidentNote}${eventNote}`,
         { className: "siem-tooltip", direction: "top", offset: L.point(0, -6) },
       );
 
@@ -763,8 +830,14 @@ export function GlobeView({
                 const subcategory = escapeHtml(formatSubcategory(alert.subcategory));
                 const link = escapeHtml(alert.canonical_url);
                 const sev = escapeHtml(alert.severity.toUpperCase());
-                const meta = subcategory
-                  ? `<div style="font-size:11px;line-height:1.25;color:#94a3b8;margin-top:3px;">${subcategory}</div>`
+                const reporter = escapeHtml(
+                  [alert.source.authority_name, alert.source.country_code || alert.source.country]
+                    .filter(Boolean)
+                    .join(" · "),
+                );
+                const metaText = [reporter, subcategory].filter(Boolean).join(" · ");
+                const meta = metaText
+                  ? `<div style="font-size:11px;line-height:1.25;color:#94a3b8;margin-top:3px;">${metaText}</div>`
                   : "";
                 const sourceLink = link
                   ? `<a href="${link}" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin-top:5px;font-size:11px;color:#60a5fa;text-decoration:none;">Open source ↗</a>`
@@ -834,7 +907,7 @@ export function GlobeView({
       map.off("zoomstart", closeClusterList);
       closeClusterList();
     };
-  }, [countryFilterCode, visibleNowAlerts, visibleHistoryAlertsRendered, selectedId]);
+  }, [countryFilterCode, focusMode, visibleNowAlerts, visibleHistoryAlertsRendered, selectedId]);
 
   /* ── Fly to region on filter change ───────────────────────────── */
 
@@ -883,6 +956,33 @@ export function GlobeView({
     const vp = REGION_VIEWPORTS[regionFilter] ?? REGION_VIEWPORTS.Europe;
     map.flyTo(vp.center, vp.zoom, { duration: 0.8 });
   }, [countryFilterCode, countryFocusCenter, geocodedVisibleAlerts, isLargeCountryScope, regionFilter]);
+
+  // Entering cluster focus: frame every member event location plus the
+  // reporting-source centroids so the whole spread is on screen. Runs after
+  // the region fly-to so it wins when both fire on the same selection.
+  const lastFocusKeyRef = useRef("");
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const key = focusAlerts
+      .map((a) => a.alert_id)
+      .sort()
+      .join("|");
+    if (key === lastFocusKeyRef.current) return;
+    lastFocusKeyRef.current = key;
+    if (!key) return;
+    const points: [number, number][] = [];
+    for (const alert of focusAlerts) {
+      if (!(alert.lat === 0 && alert.lng === 0)) {
+        points.push([alert.lat, alert.lng]);
+      }
+      const centroid = countryCentroid((alert.source.country_code || "").toUpperCase());
+      if (centroid) points.push(centroid);
+    }
+    if (points.length === 0) return;
+    map.flyToBounds(L.latLngBounds(points), { duration: 0.8, maxZoom: 5, padding: [60, 60] });
+  }, [focusAlerts]);
 
   useEffect(() => {
     const lens = getConflictLensById(conflictLensId);

@@ -559,6 +559,7 @@ export default function App() {
               alerts={selectedIncident ? selectedIncidentMapAlerts : scopedAlerts}
               historicalAlerts={selectedIncident ? selectedIncidentMapAlerts : scopedStateAlerts}
               previewAlerts={previewIncidentAlerts}
+              focusAlerts={selectedIncidentMapAlerts}
               selectedId={selectedId}
               onSelect={setSelectedId}
               regionFilter={regionFilter}

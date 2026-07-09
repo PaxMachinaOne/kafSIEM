@@ -81,7 +81,7 @@ export function IncidentRelationsPanel({
           <GitBranch size={10} />
           Attack relations
         </div>
-        <div className="mt-1 text-sm text-siem-text">Corroborated clusters across cyber, terror, maritime, and conflict feeds.</div>
+        <div className="mt-1 text-xs text-siem-text">Corroborated clusters across cyber, terror, maritime, and conflict feeds.</div>
       </div>
 
       <div className="border-b border-siem-border/80 px-3 py-2">
@@ -89,7 +89,7 @@ export function IncidentRelationsPanel({
           <button
             type="button"
             onClick={() => setAttackFilter("all")}
-            className={`rounded-full border px-2 py-1 text-4xs uppercase tracking-[0.14em] ${
+            className={`rounded-full border px-1.5 py-0.5 text-4xs uppercase tracking-[0.08em] ${
               attackFilter === "all" ? "border-siem-accent/45 bg-siem-accent/12 text-siem-text" : "border-siem-border text-siem-muted"
             }`}
           >
@@ -100,7 +100,7 @@ export function IncidentRelationsPanel({
               key={type}
               type="button"
               onClick={() => setAttackFilter(type)}
-              className={`rounded-full border px-2 py-1 text-4xs uppercase tracking-[0.14em] ${
+              className={`rounded-full border px-1.5 py-0.5 text-4xs uppercase tracking-[0.08em] ${
                 attackFilter === type ? attackTypeBadge[type] : "border-siem-border text-siem-muted"
               }`}
             >
@@ -190,30 +190,30 @@ function IncidentRelationCard({
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className={`rounded-full border px-2 py-0.5 text-4xs uppercase tracking-[0.14em] ${attackTypeBadge[attackType]}`}>
+            <span className={`rounded-full border px-1.5 py-0.5 text-4xs uppercase tracking-[0.08em] whitespace-nowrap ${attackTypeBadge[attackType]}`}>
               {attackTypeLabels[attackType]}
             </span>
-            <span className="rounded-full border border-siem-border px-2 py-0.5 text-4xs uppercase tracking-[0.14em] text-siem-muted">
+            <span className="rounded-full border border-siem-border px-1.5 py-0.5 text-4xs uppercase tracking-[0.08em] whitespace-nowrap text-siem-muted">
               {countLabel}
             </span>
             {spike ? (
               <span
-                className={`rounded-full border px-2 py-0.5 text-4xs uppercase tracking-[0.14em] ${
+                className={`rounded-full border px-1.5 py-0.5 text-4xs uppercase tracking-[0.08em] whitespace-nowrap ${
                   spike.level === "surge"
                     ? "border-rose-400/45 bg-rose-400/12 text-rose-200"
                     : "border-amber-400/45 bg-amber-400/12 text-amber-200"
                 }`}
               >
-                Reporting spike ×{spike.ratio} ({spike.countryCode})
+                Spike ×{spike.ratio} · {spike.countryCode}
               </span>
             ) : null}
             {outsideRegion ? (
-              <span className="rounded-full border border-siem-border px-2 py-0.5 text-4xs uppercase tracking-[0.14em] text-siem-muted/80">
+              <span className="rounded-full border border-siem-border px-1.5 py-0.5 text-4xs uppercase tracking-[0.08em] whitespace-nowrap text-siem-muted/80">
                 Outside map region
               </span>
             ) : null}
           </div>
-          <div className="mt-2 text-sm font-medium text-siem-text line-clamp-2">{incident.title}</div>
+          <div className="mt-2 text-xs font-medium text-siem-text line-clamp-2">{incident.title}</div>
           <div className="mt-1 font-mono text-xxs text-siem-muted truncate">{incident.incident_id}</div>
         </div>
         {attackType === "cyber" ? <ShieldAlert size={16} className="shrink-0 text-cyan-300" /> : <Radar size={16} className="shrink-0 text-orange-300" />}
