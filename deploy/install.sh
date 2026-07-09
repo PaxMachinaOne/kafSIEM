@@ -492,6 +492,11 @@ configure_env() {
   if [[ -f "$env_file" ]]; then
     cp "$env_file" "$env_file.backup.$(date +%Y%m%d%H%M%S).bak"
     info "Existing .env backed up."
+    if grep -qE '^KAFSIEM_(WEB|COLLECTOR|API|BROWSER)_IMAGE=' "$env_file"; then
+      sed -i.bak -E '/^KAFSIEM_(WEB|COLLECTOR|API|BROWSER)_IMAGE=/d' "$env_file"
+      rm -f "$env_file.bak"
+      info "Removed stale image pins from .env; compose defaults now apply."
+    fi
   else
     cp "$example_file" "$env_file"
     info "Created .env from .env.example."
