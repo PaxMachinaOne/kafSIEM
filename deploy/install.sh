@@ -327,19 +327,25 @@ repo_slug() {
 fetch_repo_file() {
   local path="$1"
   local out="$2"
-  local raw_url
+  local raw_url attempt
   REPO_SLUG="${REPO_SLUG:-$(repo_slug)}"
   raw_url="https://raw.githubusercontent.com/${REPO_SLUG}/${REPO_REF}/${path}"
 
-  if command -v curl >/dev/null 2>&1; then
-    curl -fsSL "$raw_url" -o "$out"
-    return 0
-  fi
-  if command -v wget >/dev/null 2>&1; then
-    wget -qO "$out" "$raw_url"
-    return 0
-  fi
-  fatal "Need curl or wget to fetch ${path} from ${raw_url}"
+  command -v curl >/dev/null 2>&1 || command -v wget >/dev/null 2>&1 \
+    || fatal "Need curl or wget to fetch ${path} from ${raw_url}"
+
+  for attempt in 1 2 3 4 5; do
+    if command -v curl >/dev/null 2>&1; then
+      curl -fsSL "$raw_url" -o "$out" && return 0
+    else
+      wget -qO "$out" "$raw_url" && return 0
+    fi
+    if [[ "$attempt" -lt 5 ]]; then
+      info "Fetch failed for ${path} (attempt ${attempt}/5); retrying in $((attempt * 10))s..."
+      sleep $((attempt * 10))
+    fi
+  done
+  fatal "Failed to fetch ${path} from ${raw_url} after 5 attempts."
 }
 
 raw_repo_url() {
