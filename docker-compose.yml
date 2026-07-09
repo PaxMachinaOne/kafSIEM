@@ -103,9 +103,15 @@ services:
       - ./registry/curated_agencies.seed.json:/app/registry/curated_agencies.seed.json:ro
       - ./registry/geo/countries-adm0.geojson:/app/registry/geo/countries-adm0.geojson:ro
       - ./registry/geo/terror-activity-seed.geojson:/app/registry/geo/terror-activity-seed.geojson:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://127.0.0.1:3001/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
     depends_on:
       browser:
-        condition: service_started
+        condition: service_healthy
     init: true
     restart: unless-stopped
 
