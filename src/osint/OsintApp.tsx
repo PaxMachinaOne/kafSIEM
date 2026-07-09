@@ -111,6 +111,10 @@ export default function App() {
   const preLensSourcesRef = useRef<string[] | null>(null);
   const [utcTime, setUtcTime] = useState(() => new Date().toISOString().slice(0, 19).replace("T", " ") + "Z");
   const { detail: selectedIncidentDetail } = useIncidentDetail(selectedIncident?.incident_id, selectedIncident !== null);
+  const { detail: previewIncidentDetail } = useIncidentDetail(
+    previewIncident?.incident_id,
+    previewIncident !== null && selectedIncident === null,
+  );
   const activeDynamicConflict = useMemo(
     () => (conflictLensId ? currentConflicts.find((conflict) => conflict.lensIds.includes(conflictLensId)) ?? null : null),
     [conflictLensId, currentConflicts],
@@ -155,13 +159,16 @@ export default function App() {
     if (!previewIncident || selectedIncident) return [];
     const ids = new Set(previewIncident.alert_ids);
     const byID = new Map<string, Alert>();
+    for (const alert of previewIncidentDetail?.alerts ?? []) {
+      byID.set(alert.alert_id, withCentroidCoords(alert));
+    }
     for (const alert of [...alerts, ...stateAlerts]) {
       if (ids.has(alert.alert_id) && !byID.has(alert.alert_id)) {
         byID.set(alert.alert_id, withCentroidCoords(alert));
       }
     }
     return [...byID.values()];
-  }, [alerts, previewIncident, selectedIncident, stateAlerts]);
+  }, [alerts, previewIncident, previewIncidentDetail?.alerts, selectedIncident, stateAlerts]);
 
   useEffect(() => {
     const id = setInterval(() => {
