@@ -231,6 +231,27 @@ corroborate. Clustering is deterministic (union-find; `inc-id` is hashed from
 the oldest member alert so the ID survives new members joining). No LLM
 clustering.
 
+### Clustering performance
+
+Exact-match dimensions (CVE, entity, country, malware, sector, sanctioned
+entity) are joined through inverted indexes — candidate pairs only form
+inside a shared bucket, then pass the same time-window and same-source
+guards. The Jaccard dimension has no exact key, so it remains a pair scan
+bounded by its 24h window over a time-sorted slice. On a 36k-alert archive
+this cut one clustering pass from ~229s to ~15s (Apple M1) with identical
+cluster output.
+
+Benchmarks live in `internal/collector/normalize/incidents_bench_test.go`:
+
+```
+# synthetic corpus, no fixture needed
+go test ./internal/collector/normalize/ -run xxx -bench Synthetic
+
+# real corpus: point at an alerts-state.json snapshot
+KAFSIEM_BENCH_STATE=/path/to/alerts-state.json \
+  go test ./internal/collector/normalize/ -run xxx -bench State -benchtime 1x
+```
+
 ### Attack type classification
 
 Each incident summary carries `attack_type` for the public Relations lens:
