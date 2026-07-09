@@ -8,6 +8,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -5846,7 +5847,9 @@ func (a *geoLLMAdapter) GeoLocate(ctx context.Context, query string) (lat, lng f
 		{Role: "user", Content: query + ", geo coords, nothing else"},
 	})
 	if err != nil {
-		fmt.Fprintf(a.stderr, "WARN llm-geo: %v\n", err)
+		if !errors.Is(err, vet.ErrCircuitOpen) {
+			fmt.Fprintf(a.stderr, "WARN llm-geo: %v\n", err)
+		}
 		return 0, 0, false
 	}
 	resp = strings.TrimSpace(resp)

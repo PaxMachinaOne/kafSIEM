@@ -7,14 +7,73 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/scalytics/kafSIEM/internal/collector/config"
 )
+
+// ErrCircuitOpen is returned without contacting the endpoint after repeated
+// consecutive failures. Callers should treat it as "LLM unavailable" and skip
+// per-item logging; the failures that tripped the breaker were already logged.
+var ErrCircuitOpen = errors.New("llm endpoint circuit open")
+
+const (
+	breakerFailureThreshold = 3
+	breakerCooldown         = 10 * time.Minute
+)
+
+// Breaker state is shared per completions URL, not per Client: clients are
+// constructed at many call sites, so instance state would reset constantly.
+type breaker struct {
+	mu        sync.Mutex
+	failures  int
+	openUntil time.Time
+}
+
+var (
+	breakersMu sync.Mutex
+	breakers   = map[string]*breaker{}
+)
+
+func breakerFor(url string) *breaker {
+	breakersMu.Lock()
+	defer breakersMu.Unlock()
+	b, ok := breakers[url]
+	if !ok {
+		b = &breaker{}
+		breakers[url] = b
+	}
+	return b
+}
+
+func (b *breaker) open() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return time.Now().Before(b.openUntil)
+}
+
+func (b *breaker) recordFailure() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.failures++
+	if b.failures >= breakerFailureThreshold {
+		b.openUntil = time.Now().Add(breakerCooldown)
+		b.failures = 0
+	}
+}
+
+func (b *breaker) recordSuccess() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.failures = 0
+	b.openUntil = time.Time{}
+}
 
 type Client struct {
 	httpClient  *http.Client
@@ -23,6 +82,7 @@ type Client struct {
 	model       string
 	provider    string
 	temperature float64
+	breaker     *breaker
 }
 
 func NewClient(cfg config.Config) *Client {
@@ -30,13 +90,15 @@ func NewClient(cfg config.Config) *Client {
 	if timeout <= 0 {
 		timeout = 45 * time.Second
 	}
+	baseURL := strings.TrimSpace(cfg.VettingBaseURL)
 	return &Client{
 		httpClient:  &http.Client{Timeout: timeout},
-		baseURL:     strings.TrimSpace(cfg.VettingBaseURL),
+		baseURL:     baseURL,
 		apiKey:      strings.TrimSpace(cfg.VettingAPIKey),
 		model:       strings.TrimSpace(cfg.VettingModel),
 		provider:    strings.TrimSpace(cfg.VettingProvider),
 		temperature: cfg.VettingTemperature,
+		breaker:     breakerFor(completionsURL(baseURL)),
 	}
 }
 
@@ -60,6 +122,9 @@ type chatResponse struct {
 }
 
 func (c *Client) Complete(ctx context.Context, messages []Message) (string, error) {
+	if c.breaker.open() {
+		return "", ErrCircuitOpen
+	}
 	reqBody, err := json.Marshal(chatRequest{
 		Model:       c.model,
 		Messages:    messages,
@@ -84,16 +149,23 @@ func (c *Client) Complete(ctx context.Context, messages []Message) (string, erro
 
 	res, err := c.httpClient.Do(req)
 	if err != nil {
+		// A caller-cancelled context is not an endpoint failure.
+		if ctx.Err() != context.Canceled {
+			c.breaker.recordFailure()
+		}
 		return "", fmt.Errorf("request source vetting completion: %w", err)
 	}
 	defer res.Body.Close()
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
+		c.breaker.recordFailure()
 		return "", fmt.Errorf("read source vetting response: %w", err)
 	}
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		c.breaker.recordFailure()
 		return "", fmt.Errorf("source vetting endpoint status %d: %s", res.StatusCode, strings.TrimSpace(string(body)))
 	}
+	c.breaker.recordSuccess()
 
 	var parsed chatResponse
 	if err := json.Unmarshal(body, &parsed); err != nil {
