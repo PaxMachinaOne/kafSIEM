@@ -122,139 +122,143 @@ func ApplyIncidentLinks(alerts []model.Alert) ([]model.Alert, []model.IncidentSu
 		}
 	}
 
+	// Sort by timestamp so every window-bounded scan can stop at the first
+	// out-of-window candidate instead of skipping it and continuing.
+	sort.Slice(fps, func(i, j int) bool { return fps[i].ts.Before(fps[j].ts) })
+
+	addReason := func(left, right incidentFingerprints, reason string) {
+		union.union(left.alert.AlertID, right.alert.AlertID)
+		reasonsByAlert[left.alert.AlertID] = appendUniqueString(reasonsByAlert[left.alert.AlertID], reason)
+		reasonsByAlert[right.alert.AlertID] = appendUniqueString(reasonsByAlert[right.alert.AlertID], reason)
+	}
+
+	// Jaccard similarity has no exact-match key to index on, so it stays a
+	// pair scan — bounded by the 24h window over the time-sorted slice.
 	for i := range fps {
 		for j := i + 1; j < len(fps); j++ {
 			left := fps[i]
 			right := fps[j]
 			if hoursApart(left.ts, right.ts) > fingerprintTimeWindowHours {
-				continue
-			}
-			if left.alert.SourceID != right.alert.SourceID &&
-				jaccardSimilarity(left.tokens, right.tokens) >= fingerprintSimilarityThreshold {
-				union.union(left.alert.AlertID, right.alert.AlertID)
-				score := jaccardSimilarity(left.tokens, right.tokens)
-				reason := "cross_source:jaccard:" + formatScore(score)
-				reasonsByAlert[left.alert.AlertID] = appendUniqueString(reasonsByAlert[left.alert.AlertID], reason)
-				reasonsByAlert[right.alert.AlertID] = appendUniqueString(reasonsByAlert[right.alert.AlertID], reason)
-			}
-		}
-	}
-
-	for i := range fps {
-		for j := i + 1; j < len(fps); j++ {
-			left := fps[i]
-			right := fps[j]
-			if hoursApart(left.ts, right.ts) > cveIncidentWindowHours {
-				continue
+				break
 			}
 			if left.alert.SourceID == right.alert.SourceID {
 				continue
 			}
-			shared := intersectStrings(left.cves, right.cves)
-			if len(shared) == 0 {
-				continue
-			}
-			union.union(left.alert.AlertID, right.alert.AlertID)
-			for _, cve := range shared {
-				reason := "shared_cve:" + cve
-				reasonsByAlert[left.alert.AlertID] = appendUniqueString(reasonsByAlert[left.alert.AlertID], reason)
-				reasonsByAlert[right.alert.AlertID] = appendUniqueString(reasonsByAlert[right.alert.AlertID], reason)
+			if score := jaccardSimilarity(left.tokens, right.tokens); score >= fingerprintSimilarityThreshold {
+				addReason(left, right, "cross_source:jaccard:"+formatScore(score))
 			}
 		}
 	}
 
-	for i := range fps {
-		for j := i + 1; j < len(fps); j++ {
-			left := fps[i]
-			right := fps[j]
-			if hoursApart(left.ts, right.ts) > entityIncidentWindowHours {
-				continue
+	cveBuckets := make(map[string][]int)
+	actorBuckets := make(map[string][]int)
+	countryBuckets := make(map[string][]int)
+	malwareBuckets := make(map[string][]int)
+	sectorBuckets := make(map[string][]int)
+	for i, fp := range fps {
+		for _, cve := range fp.cves {
+			cveBuckets[cve] = append(cveBuckets[cve], i)
+		}
+		for _, actor := range fp.actors {
+			actorBuckets[actor] = append(actorBuckets[actor], i)
+		}
+		if fp.country != "" {
+			countryBuckets[fp.country] = append(countryBuckets[fp.country], i)
+		}
+		for _, ioc := range fp.malwareIOCs {
+			malwareBuckets[ioc] = append(malwareBuckets[ioc], i)
+		}
+		for _, sector := range fp.sectors {
+			sectorBuckets[sector] = append(sectorBuckets[sector], i)
+		}
+	}
+
+	forBucketPairs(fps, cveBuckets, cveIncidentWindowHours, func(left, right incidentFingerprints) {
+		if left.alert.SourceID == right.alert.SourceID {
+			return
+		}
+		for _, cve := range intersectStrings(left.cves, right.cves) {
+			addReason(left, right, "shared_cve:"+cve)
+		}
+	})
+
+	forBucketPairs(fps, actorBuckets, entityIncidentWindowHours, func(left, right incidentFingerprints) {
+		shared := intersectStrings(left.actors, right.actors)
+		if len(shared) == 0 || !shouldEntityLink(left, right, shared) {
+			return
+		}
+		for _, actor := range shared {
+			reason := "shared_entity:" + actor
+			if left.alert.Category != right.alert.Category {
+				reason = "cross_category_entity:" + actor
 			}
-			shared := intersectStrings(left.actors, right.actors)
-			if len(shared) == 0 || !shouldEntityLink(left, right, shared) {
-				continue
+			addReason(left, right, reason)
+		}
+	})
+
+	forBucketPairs(fps, countryBuckets, countryIncidentWindowHours, func(left, right incidentFingerprints) {
+		if !shouldCountryLink(left, right) {
+			return
+		}
+		addReason(left, right, "shared_country:"+strings.ToUpper(left.country))
+	})
+
+	forBucketPairs(fps, malwareBuckets, malwareIncidentWindowHours, func(left, right incidentFingerprints) {
+		shared := intersectStrings(left.malwareIOCs, right.malwareIOCs)
+		if len(shared) == 0 || !shouldMalwareLink(left, right, shared) {
+			return
+		}
+		for _, ioc := range shared {
+			addReason(left, right, formatSharedMalwareReason(ioc))
+		}
+	})
+
+	forBucketPairs(fps, sectorBuckets, sectorIncidentWindowHours, func(left, right incidentFingerprints) {
+		if !shouldSectorLink(left, right) {
+			return
+		}
+		for _, sector := range intersectStrings(left.sectors, right.sectors) {
+			addReason(left, right, formatTargetsSectorReason(sector))
+		}
+	})
+
+	// Sanctioned-entity pairing only ever matches a sanctions-feed alert
+	// against a terrorism tip, so index those two small sets by actor
+	// instead of probing every pair.
+	sanctionActorBuckets := make(map[string][]int)
+	terrorActorBuckets := make(map[string][]int)
+	for i, fp := range fps {
+		if isSanctionsSource(fp.alert) {
+			if actor := MatchActorInText(strings.Join([]string{fp.alert.Title, fp.alert.Subcategory}, "\n")); actor != "" {
+				sanctionActorBuckets[actor] = append(sanctionActorBuckets[actor], i)
 			}
-			union.union(left.alert.AlertID, right.alert.AlertID)
-			for _, actor := range shared {
-				reason := "shared_entity:" + actor
-				if left.alert.Category != right.alert.Category {
-					reason = "cross_category_entity:" + actor
+		}
+		if fp.alert.Category == "terrorism_tip" {
+			if actor := MatchActorInText(strings.Join([]string{fp.alert.Title, fp.alert.Subcategory}, "\n")); actor != "" {
+				terrorActorBuckets[actor] = append(terrorActorBuckets[actor], i)
+			}
+		}
+	}
+	for actor, sanctionIdxs := range sanctionActorBuckets {
+		terrorIdxs := terrorActorBuckets[actor]
+		if len(terrorIdxs) == 0 {
+			continue
+		}
+		for _, si := range sanctionIdxs {
+			for _, ti := range terrorIdxs {
+				if si == ti {
+					continue
 				}
-				reasonsByAlert[left.alert.AlertID] = appendUniqueString(reasonsByAlert[left.alert.AlertID], reason)
-				reasonsByAlert[right.alert.AlertID] = appendUniqueString(reasonsByAlert[right.alert.AlertID], reason)
+				left := fps[si]
+				right := fps[ti]
+				if hoursApart(left.ts, right.ts) > entityIncidentWindowHours {
+					continue
+				}
+				if left.alert.SourceID == right.alert.SourceID {
+					continue
+				}
+				addReason(left, right, "sanctioned_entity:"+actor)
 			}
-		}
-	}
-
-	for i := range fps {
-		for j := i + 1; j < len(fps); j++ {
-			left := fps[i]
-			right := fps[j]
-			if !shouldCountryLink(left, right) {
-				continue
-			}
-			union.union(left.alert.AlertID, right.alert.AlertID)
-			reason := "shared_country:" + strings.ToUpper(left.country)
-			reasonsByAlert[left.alert.AlertID] = appendUniqueString(reasonsByAlert[left.alert.AlertID], reason)
-			reasonsByAlert[right.alert.AlertID] = appendUniqueString(reasonsByAlert[right.alert.AlertID], reason)
-		}
-	}
-
-	for i := range fps {
-		for j := i + 1; j < len(fps); j++ {
-			left := fps[i]
-			right := fps[j]
-			shared := intersectStrings(left.malwareIOCs, right.malwareIOCs)
-			if len(shared) == 0 || !shouldMalwareLink(left, right, shared) {
-				continue
-			}
-			union.union(left.alert.AlertID, right.alert.AlertID)
-			for _, ioc := range shared {
-				reason := formatSharedMalwareReason(ioc)
-				reasonsByAlert[left.alert.AlertID] = appendUniqueString(reasonsByAlert[left.alert.AlertID], reason)
-				reasonsByAlert[right.alert.AlertID] = appendUniqueString(reasonsByAlert[right.alert.AlertID], reason)
-			}
-		}
-	}
-
-	for i := range fps {
-		for j := i + 1; j < len(fps); j++ {
-			left := fps[i]
-			right := fps[j]
-			if !shouldSectorLink(left, right) {
-				continue
-			}
-			shared := intersectStrings(left.sectors, right.sectors)
-			if len(shared) == 0 {
-				continue
-			}
-			union.union(left.alert.AlertID, right.alert.AlertID)
-			for _, sector := range shared {
-				reason := formatTargetsSectorReason(sector)
-				reasonsByAlert[left.alert.AlertID] = appendUniqueString(reasonsByAlert[left.alert.AlertID], reason)
-				reasonsByAlert[right.alert.AlertID] = appendUniqueString(reasonsByAlert[right.alert.AlertID], reason)
-			}
-		}
-	}
-
-	for i := range fps {
-		for j := i + 1; j < len(fps); j++ {
-			left := fps[i]
-			right := fps[j]
-			if hoursApart(left.ts, right.ts) > entityIncidentWindowHours {
-				continue
-			}
-			if left.alert.SourceID == right.alert.SourceID {
-				continue
-			}
-			actor := matchSanctionedEntityPair(left.alert, right.alert)
-			if actor == "" {
-				continue
-			}
-			union.union(left.alert.AlertID, right.alert.AlertID)
-			reason := "sanctioned_entity:" + actor
-			reasonsByAlert[left.alert.AlertID] = appendUniqueString(reasonsByAlert[left.alert.AlertID], reason)
-			reasonsByAlert[right.alert.AlertID] = appendUniqueString(reasonsByAlert[right.alert.AlertID], reason)
 		}
 	}
 
@@ -266,6 +270,10 @@ func ApplyIncidentLinks(alerts []model.Alert) ([]model.Alert, []model.IncidentSu
 
 	out := make([]model.Alert, len(alerts))
 	copy(out, alerts)
+	outIndex := make(map[string]int, len(out))
+	for i := range out {
+		outIndex[out[i].AlertID] = i
+	}
 	summaries := make([]model.IncidentSummary, 0)
 
 	for _, memberIDs := range groups {
@@ -289,12 +297,8 @@ func ApplyIncidentLinks(alerts []model.Alert) ([]model.Alert, []model.IncidentSu
 		reasons = addClusterGeographyReasons(reasons, sharedCountries, sourceCount)
 		reasons = ApplyAnchorCorroboration(reasons, memberAlerts, sharedCVEs, sharedEntities, sharedMalware, anchors)
 		for _, id := range memberIDs {
-			for i := range out {
-				if out[i].AlertID != id {
-					continue
-				}
+			if i, ok := outIndex[id]; ok {
 				out[i].Incident = buildIncidentLink(incidentID, primary.AlertID, id, memberIDs, sourceCount, reasons, sharedCVEs, sharedEntities, sharedMalware, sharedSectors, sharedCountries)
-				break
 			}
 		}
 		summary := model.IncidentSummary{
@@ -331,6 +335,24 @@ func FinalizeActiveAlerts(alerts []model.Alert) ([]model.Alert, []model.Incident
 	linked, summaries := ApplyIncidentLinks(alerts)
 	finalized, suppressed := crossSourceDedup(linked)
 	return finalized, summaries, suppressed
+}
+
+// forBucketPairs visits index pairs sharing a bucket key. Bucket lists ascend
+// by fingerprint timestamp, so scans stop at the window edge. A pair sharing
+// several keys is visited once per key; visitors must be idempotent.
+func forBucketPairs(fps []incidentFingerprints, buckets map[string][]int, windowHours float64, visit func(left, right incidentFingerprints)) {
+	for _, idxs := range buckets {
+		for x := 0; x < len(idxs); x++ {
+			for y := x + 1; y < len(idxs); y++ {
+				left := fps[idxs[x]]
+				right := fps[idxs[y]]
+				if hoursApart(left.ts, right.ts) > windowHours {
+					break
+				}
+				visit(left, right)
+			}
+		}
+	}
 }
 
 func extractCVEs(text string) []string {
