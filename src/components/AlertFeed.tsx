@@ -31,6 +31,15 @@ const LIVE_WINDOW_MS = 48 * 60 * 60 * 1000; // 48 hours
 const PREFERRED_REGION_ORDER = ["Europe", "Middle East", "Africa", "North America", "Asia-Pacific"] as const;
 const INT_FORMAT = new Intl.NumberFormat("en-US");
 
+// The collector bumps last_seen on every sweep, so alerts in the live window
+// all share the latest sweep timestamp and last_seen cannot order them.
+// Detection recency (first_seen) is the differentiating key.
+function byDetectionRecency(a: Alert, b: Alert): number {
+  const first = new Date(b.first_seen).getTime() - new Date(a.first_seen).getTime();
+  if (first !== 0) return first;
+  return new Date(b.last_seen).getTime() - new Date(a.last_seen).getTime();
+}
+
 interface Props {
   alerts: Alert[];
   historicalAlerts: Alert[];
@@ -281,7 +290,7 @@ export function AlertFeed({
     () =>
       facetFiltered
         .filter((a) => (a.signal_lane ?? (a.severity === "info" ? "info" : "intel")) === "info")
-        .sort((a, b) => new Date(b.last_seen).getTime() - new Date(a.last_seen).getTime()),
+        .sort(byDetectionRecency),
     [facetFiltered],
   );
 
@@ -296,7 +305,7 @@ export function AlertFeed({
           const t = new Date(a.last_seen).getTime();
           return t >= liveCutoff;
         })
-        .sort((a, b) => new Date(b.last_seen).getTime() - new Date(a.last_seen).getTime()),
+        .sort(byDetectionRecency),
     [actionableAlerts, liveCutoff],
   );
 
@@ -323,7 +332,7 @@ export function AlertFeed({
         byId.set(alert.alert_id, alert);
       }
     }
-    return [...byId.values()].sort((a, b) => new Date(b.last_seen).getTime() - new Date(a.last_seen).getTime());
+    return [...byId.values()].sort(byDetectionRecency);
   }, [nowAlerts, historyAlerts]);
 
   const contextAlerts = useMemo(() => {
