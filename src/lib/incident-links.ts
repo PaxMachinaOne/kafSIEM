@@ -73,6 +73,9 @@ export function formatLinkReason(reason: string): string {
   if (reason.startsWith("shared_country:")) {
     return `Shared geography (${reason.slice("shared_country:".length)})`;
   }
+  if (reason.startsWith("geographic_spread:")) {
+    return `Geographic spread (${reason.slice("geographic_spread:".length).replaceAll(",", ", ")})`;
+  }
   if (reason.startsWith("shared_malware:")) {
     return `Shared malware IOC (${reason.slice("shared_malware:".length)})`;
   }
@@ -91,12 +94,17 @@ export function formatLinkReason(reason: string): string {
 export function geographyLabel(countries: string[] | undefined): string | null {
   const codes = [...new Set((countries ?? []).map((code) => code.trim().toUpperCase()).filter(Boolean))].sort();
   if (codes.length === 0) return null;
-  if (codes.length === 1) return `Shared geography (${codes[0]})`;
-  return `Geographic spread (${codes.join(", ")})`;
+  if (codes.length === 1) return `Footprint (${codes[0]})`;
+  return `Footprint (${codes.join(", ")})`;
+}
+
+export function geographyEvidenceLabel(reasons: string[] | undefined): string | null {
+  const geographyReason = (reasons ?? []).find(isGeographyReason);
+  return geographyReason ? formatLinkReason(geographyReason) : null;
 }
 
 export function isGeographyReason(reason: string): boolean {
-  return reason.startsWith("shared_country:");
+  return reason.startsWith("shared_country:") || reason.startsWith("geographic_spread:");
 }
 
 // reportLag renders how far behind the first report an entry came in:

@@ -9,7 +9,7 @@ import {
   normalizeAttackType,
   type AttackType,
 } from "@/lib/attack-types";
-import { formatLinkReason, geographyLabel, isGeographyReason } from "@/lib/incident-links";
+import { formatLinkReason, geographyEvidenceLabel, geographyLabel, isGeographyReason } from "@/lib/incident-links";
 import { detectSpikes, type ActivitySpike } from "@/lib/activity-spikes";
 import { countryRegion } from "@/lib/country-centroids";
 import type { Alert } from "@/types/alert";
@@ -171,8 +171,10 @@ function IncidentRelationCard({
   const countLabel =
     sourceCount > 0 && sourceCount !== incident.member_count
       ? `${sourceCount} sources · ${incident.member_count} alerts`
-      : `${sourceCount || incident.member_count} sources`;
-  const geography = geographyLabel(incident.countries);
+      : sourceCount > 0
+        ? `${sourceCount} sources`
+        : `${incident.member_count} alerts`;
+  const geography = geographyEvidenceLabel(incident.link_reasons) ?? geographyLabel(incident.countries);
   const reasons = (incident.link_reasons ?? [])
     .filter((reason) => !geography || !isGeographyReason(reason))
     .slice(0, 3);

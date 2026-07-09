@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatLinkReason,
+  geographyEvidenceLabel,
   geographyLabel,
   incidentSummaryLine,
   isGeographyReason,
@@ -105,12 +106,17 @@ describe("incident-links", () => {
     expect(line).toContain("CVE-2026-1234");
   });
 
-  it("labels shared geography for a single country", () => {
-    expect(geographyLabel(["AU"])).toBe("Shared geography (AU)");
+  it("labels country footprint for a single country", () => {
+    expect(geographyLabel(["AU"])).toBe("Footprint (AU)");
   });
 
-  it("labels geographic spread for multiple countries", () => {
-    expect(geographyLabel(["FR", "de", "BE", "FR"])).toBe("Geographic spread (BE, DE, FR)");
+  it("labels country footprint for multiple countries", () => {
+    expect(geographyLabel(["FR", "de", "BE", "FR"])).toBe("Footprint (BE, DE, FR)");
+  });
+
+  it("labels explicit geography relation evidence", () => {
+    expect(geographyEvidenceLabel(["cross_source:jaccard:0.82", "shared_country:AU"])).toBe("Shared geography (AU)");
+    expect(geographyEvidenceLabel(["geographic_spread:BE,DE,FR"])).toBe("Geographic spread (BE, DE, FR)");
   });
 
   it("returns null when no countries are known", () => {
@@ -129,6 +135,7 @@ describe("incident-links", () => {
 
   it("identifies geography link reasons", () => {
     expect(isGeographyReason("shared_country:AU")).toBe(true);
+    expect(isGeographyReason("geographic_spread:BE,DE,FR")).toBe(true);
     expect(isGeographyReason("shared_cve:CVE-2026-1234")).toBe(false);
   });
 });
