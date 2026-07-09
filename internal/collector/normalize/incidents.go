@@ -286,6 +286,7 @@ func ApplyIncidentLinks(alerts []model.Alert) ([]model.Alert, []model.IncidentSu
 		}
 		sourceCount := countDistinctSources(memberAlerts)
 		sharedCountries := collectCountries(memberIDs, alertIndex)
+		reasons = addClusterGeographyReasons(reasons, sharedCountries, sourceCount)
 		reasons = ApplyAnchorCorroboration(reasons, memberAlerts, sharedCVEs, sharedEntities, sharedMalware, anchors)
 		for _, id := range memberIDs {
 			for i := range out {
@@ -444,7 +445,24 @@ func eventCountryCode(alert model.Alert) string {
 
 func countryLinkCategory(category string) bool {
 	switch category {
-	case "terrorism_tip", "conflict_monitoring", "travel_warning", "humanitarian_security", "maritime_security", "public_safety":
+	case "conflict_monitoring",
+		"cyber_advisory",
+		"disease_outbreak",
+		"emergency_management",
+		"environmental_disaster",
+		"fraud_alert",
+		"health_emergency",
+		"humanitarian_security",
+		"humanitarian_tasking",
+		"intelligence_report",
+		"logistics_incident",
+		"maritime_security",
+		"missing_person",
+		"public_appeal",
+		"public_safety",
+		"terrorism_tip",
+		"travel_warning",
+		"wanted_suspect":
 		return true
 	default:
 		return false
@@ -487,6 +505,16 @@ func collectCountries(memberIDs []string, alertIndex map[string]model.Alert) []s
 		}
 	}
 	return uniqueSorted(out)
+}
+
+func addClusterGeographyReasons(reasons []string, countries []string, sourceCount int) []string {
+	if sourceCount < 2 || len(countries) == 0 {
+		return reasons
+	}
+	if len(countries) == 1 {
+		return appendUniqueString(reasons, "shared_country:"+countries[0])
+	}
+	return appendUniqueString(reasons, "geographic_spread:"+strings.Join(countries, ","))
 }
 
 func shouldEntityLink(left, right incidentFingerprints, sharedActors []string) bool {

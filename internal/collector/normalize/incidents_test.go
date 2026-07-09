@@ -134,6 +134,72 @@ func TestCollectCountriesIgnoresPublisherGeography(t *testing.T) {
 	}
 }
 
+func TestApplyIncidentLinksAddsCyberSharedCountry(t *testing.T) {
+	alerts := []model.Alert{
+		{
+			AlertID:          "foxit-de-a",
+			SourceID:         "cert-de-a",
+			Title:            "Foxit PDF Editor und PDF Reader mehrere Schwachstellen",
+			Category:         "cyber_advisory",
+			Severity:         "high",
+			EventCountryCode: "DE",
+			FirstSeen:        "2026-04-10T10:00:00Z",
+			LastSeen:         "2026-04-10T10:00:00Z",
+		},
+		{
+			AlertID:          "foxit-de-b",
+			SourceID:         "cert-de-b",
+			Title:            "Foxit PDF Editor PDF Reader mehrere Schwachstellen",
+			Category:         "cyber_advisory",
+			Severity:         "high",
+			EventCountryCode: "DE",
+			FirstSeen:        "2026-04-10T11:00:00Z",
+			LastSeen:         "2026-04-10T11:00:00Z",
+		},
+	}
+
+	_, summaries := ApplyIncidentLinks(alerts)
+	if len(summaries) != 1 {
+		t.Fatalf("expected 1 cyber incident, got %d", len(summaries))
+	}
+	if !containsString(summaries[0].LinkReasons, "shared_country:DE") {
+		t.Fatalf("expected shared_country:DE in %#v", summaries[0].LinkReasons)
+	}
+}
+
+func TestApplyIncidentLinksAddsGeographicSpread(t *testing.T) {
+	alerts := []model.Alert{
+		{
+			AlertID:          "cve-de",
+			SourceID:         "cert-de",
+			Title:            "CVE-2026-1234 exploited against edge routers",
+			Category:         "cyber_advisory",
+			Severity:         "critical",
+			EventCountryCode: "DE",
+			FirstSeen:        "2026-04-10T10:00:00Z",
+			LastSeen:         "2026-04-10T10:00:00Z",
+		},
+		{
+			AlertID:          "cve-fr",
+			SourceID:         "cert-fr",
+			Title:            "Patch advisory for CVE-2026-1234 in edge routers",
+			Category:         "cyber_advisory",
+			Severity:         "high",
+			EventCountryCode: "FR",
+			FirstSeen:        "2026-04-10T11:00:00Z",
+			LastSeen:         "2026-04-10T11:00:00Z",
+		},
+	}
+
+	_, summaries := ApplyIncidentLinks(alerts)
+	if len(summaries) != 1 {
+		t.Fatalf("expected 1 spread incident, got %d", len(summaries))
+	}
+	if !containsString(summaries[0].LinkReasons, "geographic_spread:DE,FR") {
+		t.Fatalf("expected geographic_spread:DE,FR in %#v", summaries[0].LinkReasons)
+	}
+}
+
 func TestMaxMemberSeverityEscalates(t *testing.T) {
 	members := []model.Alert{
 		{Severity: "medium"},
