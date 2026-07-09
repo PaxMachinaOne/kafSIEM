@@ -7,14 +7,12 @@
 #   REPO_URL=https://github.com/scalytics/kafSIEM.git
 #   REPO_REF=main
 #   INSTALL_DIR=$HOME/kafsiem
-#   IMAGE_TAG=latest
 
 set -euo pipefail
 
 REPO_URL="${REPO_URL:-https://github.com/scalytics/kafSIEM.git}"
 REPO_REF="${REPO_REF:-main}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/kafsiem}"
-IMAGE_TAG="${IMAGE_TAG:-latest}"
 INSTALL_MODE="${INSTALL_MODE:-update}"
 TLS_MODE="false"
 REPO_SLUG=""

@@ -1,7 +1,7 @@
 services:
   browser:
     container_name: kafsiem-browser
-    image: "${KAFSIEM_BROWSER_IMAGE:-ghcr.io/browserless/chromium:v2.44.0}"
+    image: "${KAFSIEM_BROWSER_IMAGE:-ghcr.io/scalytics/kafsiem-browser:v2.44.0}"
     environment:
       CONCURRENT: "${BROWSER_MAX_CONCURRENCY:-4}"
       TIMEOUT: "300000"
