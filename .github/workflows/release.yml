@@ -50,6 +50,11 @@ jobs:
           - name: collector
             dockerfile: Dockerfile.collector
             image_suffix: -collector
+            target: runtime
+          - name: api
+            dockerfile: Dockerfile.collector
+            image_suffix: -api
+            target: api-runtime
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -101,6 +106,7 @@ jobs:
             type=raw,value=latest
 
       - name: Build and push image (attempt 1)
+        if: matrix.image.name == 'web'
         id: build_push_1
         continue-on-error: true
         uses: docker/build-push-action@v6
@@ -116,12 +122,46 @@ jobs:
           cache-from: type=gha,scope=release-${{ matrix.image.name }}
           cache-to: type=gha,mode=max,scope=release-${{ matrix.image.name }}
 
+      - name: Build and push targeted image (attempt 1)
+        if: matrix.image.name != 'web'
+        id: build_push_targeted_1
+        continue-on-error: true
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./${{ matrix.image.dockerfile }}
+          target: ${{ matrix.image.target }}
+          push: true
+          provenance: false
+          build-args: |
+            APP_VERSION=${{ github.ref_name }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=release-${{ matrix.image.name }}
+          cache-to: type=gha,mode=max,scope=release-${{ matrix.image.name }}
+
       - name: Build and push image (attempt 2 on transient failure)
         if: steps.build_push_1.outcome == 'failure'
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./${{ matrix.image.dockerfile }}
+          push: true
+          provenance: false
+          build-args: |
+            APP_VERSION=${{ github.ref_name }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=release-${{ matrix.image.name }}
+          cache-to: type=gha,mode=max,scope=release-${{ matrix.image.name }}
+
+      - name: Build and push targeted image (attempt 2 on transient failure)
+        if: steps.build_push_targeted_1.outcome == 'failure'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./${{ matrix.image.dockerfile }}
+          target: ${{ matrix.image.target }}
           push: true
           provenance: false
           build-args: |
