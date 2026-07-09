@@ -275,6 +275,23 @@ match:
 	}
 }
 
+func TestNewBootstrapsMissingAgentOpsDB(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "agentops.db")
+	srv, err := New(Config{
+		Listen:   ":0",
+		DBPath:   dbPath,
+		PacksDir: filepath.Join("..", "..", "packs"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+
+	if _, err := os.Stat(dbPath); err != nil {
+		t.Fatalf("expected bootstrapped db: %v", err)
+	}
+}
+
 func TestRunMainValidatePacks(t *testing.T) {
 	stdout, stderr := &strings.Builder{}, &strings.Builder{}
 	if err := RunMain([]string{"--validate-packs", "--packs", filepath.Join("..", "..", "packs")}, os.Stdout, os.Stderr); err != nil {

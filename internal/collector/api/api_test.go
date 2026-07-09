@@ -93,6 +93,52 @@ func seedAlerts(t *testing.T, db *sourcedb.DB) {
 	}
 }
 
+func TestOSINTIncidentsAPI(t *testing.T) {
+	db := testDB(t)
+	defer db.Close()
+	if err := db.SaveOSINTIncidents(context.Background(), []model.IncidentSummary{
+		{
+			IncidentID:     "inc-test",
+			Title:          "Linked CVE advisories",
+			Category:       "cyber_advisory",
+			Severity:       "high",
+			MemberCount:    2,
+			PrimaryAlertID: "a1",
+			AlertIDs:       []string{"a1", "a2"},
+			LinkReasons:    []string{"shared_cve:CVE-2026-1234"},
+			CVEs:           []string{"CVE-2026-1234"},
+			FirstSeen:      "2026-04-10T10:00:00Z",
+			LastSeen:       "2026-04-10T12:00:00Z",
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := New(db, ":0", os.Stderr, nil, "")
+	handler := srv.srv.Handler
+
+	listReq := httptest.NewRequest("GET", "/api/osint/incidents", nil)
+	listRec := httptest.NewRecorder()
+	handler.ServeHTTP(listRec, listReq)
+	if listRec.Code != http.StatusOK {
+		t.Fatalf("list status=%d body=%s", listRec.Code, listRec.Body.String())
+	}
+
+	detailReq := httptest.NewRequest("GET", "/api/osint/incidents/inc-test", nil)
+	detailRec := httptest.NewRecorder()
+	handler.ServeHTTP(detailRec, detailReq)
+	if detailRec.Code != http.StatusOK {
+		t.Fatalf("detail status=%d body=%s", detailRec.Code, detailRec.Body.String())
+	}
+
+	missingReq := httptest.NewRequest("GET", "/api/osint/incidents/does-not-exist", nil)
+	missingRec := httptest.NewRecorder()
+	handler.ServeHTTP(missingRec, missingReq)
+	if missingRec.Code != http.StatusNotFound {
+		t.Fatalf("missing status=%d body=%s", missingRec.Code, missingRec.Body.String())
+	}
+}
+
 func TestSearchReturnsRankedResults(t *testing.T) {
 	db := testDB(t)
 	defer db.Close()

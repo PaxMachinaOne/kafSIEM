@@ -1,0 +1,87 @@
+{
+  "items": [
+    {
+      "incident_id": "inc-demo-cve-12345",
+      "title": "Critical F5 BIG-IP advisory for CVE-2026-12345",
+      "category": "cyber_advisory",
+      "severity": "high",
+      "member_count": 3,
+      "primary_alert_id": "advisory-f5-2026-12345",
+      "alert_ids": [
+        "advisory-f5-2026-12345",
+        "advisory-cisa-2026-12345",
+        "advisory-vendor-2026-12345"
+      ],
+      "link_reasons": ["shared_cve:CVE-2026-12345"],
+      "cves": ["CVE-2026-12345"],
+      "countries": ["DE", "US"],
+      "attack_type": "cyber",
+      "first_seen": "2026-04-16T09:30:00Z",
+      "last_seen": "2026-04-16T10:15:00Z"
+    },
+    {
+      "incident_id": "inc-demo-dridex-2026",
+      "title": "Dridex campaign corroborated across URLhaus and CERT advisories",
+      "category": "cyber_advisory",
+      "severity": "high",
+      "member_count": 2,
+      "primary_alert_id": "malware-urlhaus-dridex",
+      "alert_ids": [
+        "malware-urlhaus-dridex",
+        "malware-cert-dridex"
+      ],
+      "link_reasons": [
+        "shared_malware:evil-c2.example",
+        "shared_malware:dridex",
+        "anchor:malware:evil-c2.example"
+      ],
+      "malware": ["dridex", "evil-c2.example"],
+      "attack_type": "cyber",
+      "first_seen": "2026-04-14T08:00:00Z",
+      "last_seen": "2026-04-14T09:30:00Z"
+    },
+    {
+      "incident_id": "inc-demo-ics-energy-2026",
+      "title": "ICS malware campaign targeting energy sector SCADA operators",
+      "category": "cyber_advisory",
+      "severity": "critical",
+      "member_count": 2,
+      "primary_alert_id": "ics-energy-cert-a",
+      "alert_ids": [
+        "ics-energy-cert-a",
+        "ics-energy-vendor-b"
+      ],
+      "link_reasons": [
+        "targets_sector:energy",
+        "targets_sector:ics"
+      ],
+      "sectors": ["energy", "ics"],
+      "attack_type": "cyber",
+      "first_seen": "2026-04-15T10:00:00Z",
+      "last_seen": "2026-04-15T12:00:00Z"
+    },
+    {
+      "incident_id": "inc-demo-shabaab-2026",
+      "title": "Al-Shabaab Mogadishu market attack corroborated across conflict and terror feeds",
+      "category": "terrorism_tip",
+      "severity": "critical",
+      "member_count": 2,
+      "primary_alert_id": "terror-tip-shabaab-2026",
+      "alert_ids": [
+        "terror-tip-shabaab-2026",
+        "conflict-acled-shabaab-2026"
+      ],
+      "link_reasons": [
+        "cross_category_entity:Al-Shabaab",
+        "shared_country:SO",
+        "anchor:known_actor:Al-Shabaab"
+      ],
+      "entities": ["Al-Shabaab"],
+      "countries": ["SO"],
+      "attack_type": "terror",
+      "first_seen": "2026-04-12T08:00:00Z",
+      "last_seen": "2026-04-12T10:30:00Z"
+    }
+  ],
+  "count": 4
+}

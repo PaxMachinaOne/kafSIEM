@@ -23,6 +23,7 @@ import (
 	agentopsschema "github.com/scalytics/kafSIEM/internal/agentops/schema"
 	"github.com/scalytics/kafSIEM/internal/agentops/store"
 	"github.com/scalytics/kafSIEM/internal/graph"
+	graphschema "github.com/scalytics/kafSIEM/internal/graph/schema"
 	"github.com/scalytics/kafSIEM/internal/packs"
 )
 
@@ -53,6 +54,9 @@ type problem struct {
 }
 
 func New(cfg Config) (*Server, error) {
+	if err := ensureAgentOpsDB(cfg.DBPath); err != nil {
+		return nil, err
+	}
 	readStore, err := store.OpenReadOnly(cfg.DBPath)
 	if err != nil {
 		return nil, err
@@ -181,6 +185,8 @@ func (s *Server) routes() http.Handler {
 	r.Handle("/api/digest", s.legacyProxy)
 	r.Handle("/api/noise-feedback", s.legacyProxy)
 	r.Handle("/api/noise-feedback/*", s.legacyProxy)
+	r.Handle("/api/osint/incidents", s.legacyProxy)
+	r.Handle("/api/osint/incidents/*", s.legacyProxy)
 
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/entities/{type}/{id}", s.handleEntityProfile)
@@ -1057,4 +1063,25 @@ func storePathForWrite(path string) string {
 		return strings.TrimSuffix(path, ".json") + ".db"
 	}
 	return path
+}
+
+func ensureAgentOpsDB(path string) error {
+	dbPath := storePathForWrite(path)
+	if dbPath == "" {
+		return fmt.Errorf("ensure agentops db: empty path")
+	}
+	if _, err := os.Stat(dbPath); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("stat agentops db: %w", err)
+	}
+	db, err := agentopsschema.Open(dbPath)
+	if err != nil {
+		return fmt.Errorf("bootstrap agentops db: %w", err)
+	}
+	defer db.Close()
+	if err := graphschema.Apply(db); err != nil {
+		return fmt.Errorf("bootstrap graph schema: %w", err)
+	}
+	return nil
 }

@@ -312,7 +312,7 @@ func (r Runner) runOnce(ctx context.Context, cfg config.Config) error {
 						dlq.Remove(source.Source.SourceID)
 					}
 					if completed%25 == 0 || completed == 1 {
-						r.writeProgressSnapshot(cfg, alerts, previousAlerts, sourceHealth, previousSourceHealth, len(sources))
+						r.writeProgressSnapshot(ctx, cfg, alerts, previousAlerts, sourceHealth, previousSourceHealth, len(sources))
 						// Flush DLQ so background discovery can see dead sources early.
 						_ = dlq.Write(cfg.ReplacementQueuePath)
 					}
@@ -332,7 +332,7 @@ func (r Runner) runOnce(ctx context.Context, cfg config.Config) error {
 		}
 		wg.Wait()
 		// Snapshot after fast pass completes.
-		r.writeProgressSnapshot(cfg, alerts, previousAlerts, sourceHealth, previousSourceHealth, len(sources))
+		r.writeProgressSnapshot(ctx, cfg, alerts, previousAlerts, sourceHealth, previousSourceHealth, len(sources))
 	}
 
 	// API pass — structured sources with full timeout, but no browser transport.
@@ -394,7 +394,7 @@ func (r Runner) runOnce(ctx context.Context, cfg config.Config) error {
 						dlq.Remove(source.Source.SourceID)
 					}
 					if completed%25 == 0 {
-						r.writeProgressSnapshot(cfg, alerts, previousAlerts, sourceHealth, previousSourceHealth, len(sources))
+						r.writeProgressSnapshot(ctx, cfg, alerts, previousAlerts, sourceHealth, previousSourceHealth, len(sources))
 						_ = dlq.Write(cfg.ReplacementQueuePath)
 					}
 					mu.Unlock()
@@ -412,7 +412,7 @@ func (r Runner) runOnce(ctx context.Context, cfg config.Config) error {
 			}()
 		}
 		wg.Wait()
-		r.writeProgressSnapshot(cfg, alerts, previousAlerts, sourceHealth, previousSourceHealth, len(sources))
+		r.writeProgressSnapshot(ctx, cfg, alerts, previousAlerts, sourceHealth, previousSourceHealth, len(sources))
 	}
 
 	// Browser pass — sequential, with cadence/rate-limit handling.
@@ -513,7 +513,7 @@ func (r Runner) runOnce(ctx context.Context, cfg config.Config) error {
 			dlq.Remove(source.Source.SourceID)
 		}
 		if completed%25 == 0 {
-			r.writeProgressSnapshot(cfg, alerts, previousAlerts, sourceHealth, previousSourceHealth, len(sources))
+			r.writeProgressSnapshot(ctx, cfg, alerts, previousAlerts, sourceHealth, previousSourceHealth, len(sources))
 			_ = dlq.Write(cfg.ReplacementQueuePath)
 		}
 	}
@@ -605,8 +605,13 @@ func (r Runner) runOnce(ctx context.Context, cfg config.Config) error {
 		}
 	}
 
-	if err := output.Write(cfg, currentActive, currentFiltered, fullState, sourceHealth, duplicateAudit, replacementQueue); err != nil {
+	currentActive, incidents, crossSuppressed := normalize.FinalizeActiveAlerts(currentActive)
+	duplicateAudit.SuppressedCrossSourceDuplicates += crossSuppressed
+	if err := output.Write(cfg, currentActive, currentFiltered, fullState, sourceHealth, duplicateAudit, replacementQueue, incidents); err != nil {
 		return err
+	}
+	if err := saveOSINTIncidents(ctx, cfg, incidents); err != nil {
+		fmt.Fprintf(r.stderr, "WARN osint incidents save: %v\n", err)
 	}
 	if collectorRole(cfg) == "all" {
 		if err := r.writeZoneBriefings(ctx, cfg, sources); err != nil {
@@ -697,7 +702,7 @@ func (r Runner) syncRegistrySeed(ctx context.Context, cfg config.Config) error {
 	return nil
 }
 
-func (r Runner) writeProgressSnapshot(cfg config.Config, freshAlerts []model.Alert, previousAlerts []model.Alert, sourceHealth []model.SourceHealthEntry, previousSourceHealth []model.SourceHealthEntry, totalRegistrySources int) {
+func (r Runner) writeProgressSnapshot(ctx context.Context, cfg config.Config, freshAlerts []model.Alert, previousAlerts []model.Alert, sourceHealth []model.SourceHealthEntry, previousSourceHealth []model.SourceHealthEntry, totalRegistrySources int) {
 	// Merge fresh alerts with previous state so the dashboard never goes
 	// blank during a sweep. Previous alerts that aren't in the fresh batch
 	// are carried forward as-is — but only for sources that haven't been
@@ -730,8 +735,18 @@ func (r Runner) writeProgressSnapshot(cfg config.Config, freshAlerts []model.Ale
 	deduped, duplicateAudit := normalize.Deduplicate(merged)
 	deduped = normalize.ApplySignalLanes(cfg, deduped)
 	active, filtered := normalize.FilterActive(cfg, deduped)
-	if err := output.WriteWithTotal(cfg, active, filtered, active, mergedHealth, duplicateAudit, nil, totalRegistrySources); err != nil {
+	active, incidents, crossSuppressed := normalize.FinalizeActiveAlerts(active)
+	duplicateAudit.SuppressedCrossSourceDuplicates += crossSuppressed
+	if err := output.WriteWithTotal(cfg, active, filtered, active, mergedHealth, duplicateAudit, nil, totalRegistrySources, incidents); err != nil {
 		fmt.Fprintf(r.stderr, "WARN progress snapshot write failed: %v\n", err)
+		return
+	}
+	if err := saveAlertState(ctx, cfg, active); err != nil {
+		fmt.Fprintf(r.stderr, "WARN progress snapshot alert DB save failed: %v\n", err)
+		return
+	}
+	if err := saveOSINTIncidents(ctx, cfg, incidents); err != nil {
+		fmt.Fprintf(r.stderr, "WARN progress snapshot incident DB save failed: %v\n", err)
 		return
 	}
 	fmt.Fprintf(r.stdout, "Progress snapshot: %d active alerts (%d fresh + %d previous) after %d/%d sources\n", len(active), len(freshAlerts), len(previousAlerts), len(sourceHealth), totalRegistrySources)
@@ -852,7 +867,7 @@ func usesFastLane(s model.RegistrySource) bool {
 // browser bridge or need browser/cadence-aware handling.
 func usesBrowserLane(s model.RegistrySource) bool {
 	switch s.Type {
-	case "html-list", "telegram", "x", "interpol-red-json", "interpol-yellow-json":
+	case "html-list", "telegram", "x", "interpol-red-json", "interpol-yellow-json", "imb-piracy-html":
 		return true
 	}
 	return strings.EqualFold(strings.TrimSpace(s.FetchMode), "browser")
@@ -982,7 +997,17 @@ func (r Runner) fetchOneSource(ctx context.Context, defaultClient *fetch.Client,
 		}
 	}
 
-	batch, err := r.fetchSource(ctx, fetcher, nil, nctx, source, categoryDictionary, cursors)
+	var batch []model.Alert
+	var err error
+	var openSanctionsVersion string
+	if source.Type == "opensanctions-json" {
+		if skip, skipEntry := r.skipOpenSanctionsIfCurrent(ctx, fetcher, source, wm, startedAt); skip {
+			return nil, skipEntry
+		}
+		batch, openSanctionsVersion, err = r.fetchOpenSanctions(ctx, fetcher, nctx, source)
+	} else {
+		batch, err = r.fetchSource(ctx, fetcher, nil, nctx, source, categoryDictionary, cursors)
+	}
 
 	// Retry once for transient errors after a short backoff.
 	if err != nil {
@@ -1007,7 +1032,11 @@ func (r Runner) fetchOneSource(ctx context.Context, defaultClient *fetch.Client,
 				} else {
 					retryFetcher = defaultClient
 				}
-				batch, err = r.fetchSource(ctx, retryFetcher, nil, nctx, source, categoryDictionary, cursors)
+				if source.Type == "opensanctions-json" {
+					batch, openSanctionsVersion, err = r.fetchOpenSanctions(ctx, retryFetcher, nctx, source)
+				} else {
+					batch, err = r.fetchSource(ctx, retryFetcher, nil, nctx, source, categoryDictionary, cursors)
+				}
 			}
 		}
 	}
@@ -1020,7 +1049,7 @@ func (r Runner) fetchOneSource(ctx context.Context, defaultClient *fetch.Client,
 		StartedAt:        startedAt.Format(time.RFC3339),
 		FinishedAt:       time.Now().UTC().Format(time.RFC3339),
 		RespETag:         respETag,
-		RespLastModified: respLastModified,
+		RespLastModified: firstNonEmpty(openSanctionsVersion, respLastModified),
 	}
 
 	if err != nil {
@@ -1056,8 +1085,14 @@ func acceptForType(sourceType string) string {
 	case "x":
 		return "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
 	case "kev-json", "fbi-wanted-json", "travelwarning-json", "acled-json",
-		"usgs-geojson", "eonet-json", "gdelt-json", "feodo-json", "ucdp-json":
+		"usgs-geojson", "eonet-json", "gdelt-json", "feodo-json", "ucdp-json", "nvd-json":
 		return "application/json"
+	case "epss-csv", "urlhaus-csv":
+		return "text/csv, text/plain, application/gzip, */*;q=0.8"
+	case "un-sanctions-xml", "ofac-sdn-xml":
+		return "application/xml, text/xml;q=0.9, */*;q=0.8"
+	case "opensanctions-json":
+		return "application/json, application/x-ndjson, */*;q=0.8"
 	case "travelwarning-atom":
 		return "application/atom+xml, application/xml;q=0.9, */*;q=0.8"
 	default:
@@ -1122,11 +1157,11 @@ func statusPriority(status string) int {
 
 func typePriority(kind string) int {
 	switch strings.ToLower(strings.TrimSpace(kind)) {
-	case "kev-json":
+	case "kev-json", "nvd-json", "epss-csv":
 		return 5
 	case "interpol-red-json", "interpol-yellow-json", "fbi-wanted-json", "travelwarning-json", "travelwarning-atom":
 		return 4
-	case "usgs-geojson", "eonet-json", "feodo-json", "gdelt-json", "ucdp-json":
+	case "usgs-geojson", "eonet-json", "feodo-json", "gdelt-json", "ucdp-json", "urlhaus-csv", "un-sanctions-xml", "ofac-sdn-xml", "opensanctions-json":
 		return 4
 	case "rss":
 		return 3
@@ -1184,6 +1219,18 @@ func (r Runner) fetchSource(ctx context.Context, fetcher fetch.Fetcher, browser 
 		return r.fetchGDELT(ctx, fetcher, nctx, source)
 	case "ucdp-json":
 		return r.fetchUCDP(ctx, nctx, source)
+	case "nvd-json":
+		return r.fetchNVD(ctx, fetcher, nctx, source)
+	case "epss-csv":
+		return r.fetchEPSS(ctx, fetcher, nctx, source)
+	case "urlhaus-csv":
+		return r.fetchURLhaus(ctx, fetcher, nctx, source)
+	case "un-sanctions-xml":
+		return r.fetchUNSanctions(ctx, fetcher, nctx, source)
+	case "ofac-sdn-xml":
+		return r.fetchOFACSanctions(ctx, fetcher, nctx, source)
+	case "imb-piracy-html":
+		return r.fetchIMBPiracy(ctx, fetcher, nctx, source)
 	default:
 		return nil, fmt.Errorf("unsupported source type %s", source.Type)
 	}
@@ -2092,6 +2139,185 @@ func (r Runner) fetchFeodo(ctx context.Context, fetcher fetch.Fetcher, nctx norm
 			break
 		}
 		alert := normalize.FeodoAlert(nctx, source, item)
+		if alert != nil {
+			out = append(out, *alert)
+		}
+	}
+	return out, nil
+}
+
+func (r Runner) fetchNVD(ctx context.Context, fetcher fetch.Fetcher, nctx normalize.Context, source model.RegistrySource) ([]model.Alert, error) {
+	start := nctx.Now.Add(-7 * 24 * time.Hour).UTC().Format("2006-01-02T15:04:05.000")
+	reqURL := normalize.NVDRecentURL(source.FeedURL, start)
+	body, err := fetcher.Text(ctx, reqURL, source.FollowRedirects, "application/json")
+	if err != nil {
+		return nil, err
+	}
+	items, err := parse.ParseNVD(body)
+	if err != nil {
+		return nil, err
+	}
+	limit := perSourceLimit(nctx.Config, source)
+	out := make([]model.Alert, 0, limit)
+	for _, item := range items {
+		if len(out) == limit {
+			break
+		}
+		alert := normalize.NVDAlert(nctx, source, item)
+		if alert != nil {
+			out = append(out, *alert)
+		}
+	}
+	return out, nil
+}
+
+func (r Runner) fetchEPSS(ctx context.Context, fetcher fetch.Fetcher, nctx normalize.Context, source model.RegistrySource) ([]model.Alert, error) {
+	body, err := fetcher.Text(ctx, source.FeedURL, source.FollowRedirects, "text/csv, text/plain, application/gzip, */*;q=0.8")
+	if err != nil {
+		return nil, err
+	}
+	items, err := parse.ParseEPSS(body, 0.35, perSourceLimit(nctx.Config, source))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.Alert, 0, len(items))
+	for _, item := range items {
+		alert := normalize.EPSSAlert(nctx, source, item)
+		if alert != nil {
+			out = append(out, *alert)
+		}
+	}
+	return out, nil
+}
+
+func (r Runner) fetchURLhaus(ctx context.Context, fetcher fetch.Fetcher, nctx normalize.Context, source model.RegistrySource) ([]model.Alert, error) {
+	body, err := fetcher.Text(ctx, source.FeedURL, source.FollowRedirects, "text/csv, text/plain, */*;q=0.8")
+	if err != nil {
+		return nil, err
+	}
+	items, err := parse.ParseURLhausRecent(body, perSourceLimit(nctx.Config, source))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.Alert, 0, len(items))
+	for _, item := range items {
+		alert := normalize.URLhausAlert(nctx, source, item)
+		if alert != nil {
+			out = append(out, *alert)
+		}
+	}
+	return out, nil
+}
+
+func (r Runner) fetchUNSanctions(ctx context.Context, fetcher fetch.Fetcher, nctx normalize.Context, source model.RegistrySource) ([]model.Alert, error) {
+	body, err := fetcher.Text(ctx, source.FeedURL, source.FollowRedirects, "application/xml, text/xml;q=0.9, */*;q=0.8")
+	if err != nil {
+		return nil, err
+	}
+	items, err := parse.ParseUNSanctionsXML(body, normalize.MatchActorInText, perSourceLimit(nctx.Config, source))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.Alert, 0, len(items))
+	for _, item := range items {
+		alert := normalize.SanctionsAlert(nctx, source, item)
+		if alert != nil {
+			out = append(out, *alert)
+		}
+	}
+	return out, nil
+}
+
+func (r Runner) fetchOFACSanctions(ctx context.Context, fetcher fetch.Fetcher, nctx normalize.Context, source model.RegistrySource) ([]model.Alert, error) {
+	body, err := fetcher.Text(ctx, source.FeedURL, source.FollowRedirects, "application/xml, text/xml;q=0.9, */*;q=0.8")
+	if err != nil {
+		return nil, err
+	}
+	items, err := parse.ParseOFACSDNXML(body, normalize.MatchActorInText, perSourceLimit(nctx.Config, source))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.Alert, 0, len(items))
+	for _, item := range items {
+		alert := normalize.SanctionsAlert(nctx, source, item)
+		if alert != nil {
+			out = append(out, *alert)
+		}
+	}
+	return out, nil
+}
+
+func (r Runner) skipOpenSanctionsIfCurrent(ctx context.Context, fetcher fetch.Fetcher, source model.RegistrySource, wm *sourcedb.SourceWatermark, startedAt time.Time) (bool, model.SourceHealthEntry) {
+	entry := model.SourceHealthEntry{
+		SourceID:      source.Source.SourceID,
+		AuthorityName: source.Source.AuthorityName,
+		Type:          source.Type,
+		FeedURL:       source.FeedURL,
+		StartedAt:     startedAt.Format(time.RFC3339),
+		FinishedAt:    time.Now().UTC().Format(time.RFC3339),
+	}
+	if wm == nil || wm.LastStatus != "ok" || strings.TrimSpace(wm.LastModified) == "" {
+		return false, entry
+	}
+	body, err := fetcher.Text(ctx, source.FeedURL, source.FollowRedirects, acceptForType(source.Type))
+	if err != nil {
+		return false, entry
+	}
+	index, _, err := parse.ParseOpenSanctionsIndex(body)
+	if err != nil {
+		return false, entry
+	}
+	if strings.TrimSpace(index.LastChange) != strings.TrimSpace(wm.LastModified) {
+		return false, entry
+	}
+	entry.Status = "ok"
+	entry.ErrorClass = "not_modified"
+	entry.RespLastModified = index.LastChange
+	return true, entry
+}
+
+func (r Runner) fetchOpenSanctions(ctx context.Context, fetcher fetch.Fetcher, nctx normalize.Context, source model.RegistrySource) ([]model.Alert, string, error) {
+	indexBody, err := fetcher.Text(ctx, source.FeedURL, source.FollowRedirects, acceptForType(source.Type))
+	if err != nil {
+		return nil, "", err
+	}
+	index, entitiesURL, err := parse.ParseOpenSanctionsIndex(indexBody)
+	if err != nil {
+		return nil, "", err
+	}
+	client, ok := fetcher.(*fetch.Client)
+	if !ok {
+		return nil, "", fmt.Errorf("opensanctions requires HTTP client fetcher")
+	}
+	stream, err := client.OpenStream(ctx, entitiesURL, true, acceptForType(source.Type))
+	if err != nil {
+		return nil, "", err
+	}
+	defer stream.Close()
+
+	items, err := parse.ParseOpenSanctionsEntities(stream, normalize.MatchActorInText, perSourceLimit(nctx.Config, source))
+	if err != nil {
+		return nil, "", err
+	}
+	out := make([]model.Alert, 0, len(items))
+	for _, item := range items {
+		alert := normalize.SanctionsAlert(nctx, source, item)
+		if alert != nil {
+			out = append(out, *alert)
+		}
+	}
+	return out, index.LastChange, nil
+}
+
+func (r Runner) fetchIMBPiracy(ctx context.Context, fetcher fetch.Fetcher, nctx normalize.Context, source model.RegistrySource) ([]model.Alert, error) {
+	body, finalURL, err := fetchWithFallbackURL(ctx, fetcher, source, "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	if err != nil {
+		return nil, err
+	}
+	items := parse.ParseIMBPiracyWarnings(string(body), finalURL, perSourceLimit(nctx.Config, source))
+	out := make([]model.Alert, 0, len(items))
+	for _, item := range items {
+		alert := normalize.IMBPiracyAlert(nctx, source, item)
 		if alert != nil {
 			out = append(out, *alert)
 		}
@@ -5806,6 +6032,21 @@ func saveAlertState(ctx context.Context, cfg config.Config, alerts []model.Alert
 	return nil
 }
 
+func saveOSINTIncidents(ctx context.Context, cfg config.Config, incidents []model.IncidentSummary) error {
+	if !isSQLiteRegistryPath(cfg.RegistryPath) {
+		return nil
+	}
+	db, err := sourcedb.Open(cfg.RegistryPath)
+	if err != nil {
+		return fmt.Errorf("open source DB for incident save: %w", err)
+	}
+	defer db.Close()
+	if err := db.SaveOSINTIncidents(ctx, incidents); err != nil {
+		return fmt.Errorf("save osint incidents: %w", err)
+	}
+	return nil
+}
+
 func (r Runner) runMergeOnly(ctx context.Context, cfg config.Config, sources []model.RegistrySource) error {
 	if !isSQLiteRegistryPath(cfg.RegistryPath) {
 		return fmt.Errorf("collector role merge requires sqlite registry path")
@@ -5858,8 +6099,13 @@ func (r Runner) runMergeOnly(ctx context.Context, cfg config.Config, sources []m
 	}
 	previousSourceHealth := loadPreviousSourceHealth(cfg)
 	replacementQueue := state.ReadDLQ(cfg.ReplacementQueuePath).Entries()
-	if err := output.Write(cfg, currentActive, currentFiltered, fullState, previousSourceHealth, duplicateAudit, replacementQueue); err != nil {
+	currentActive, incidents, crossSuppressed := normalize.FinalizeActiveAlerts(currentActive)
+	duplicateAudit.SuppressedCrossSourceDuplicates += crossSuppressed
+	if err := output.Write(cfg, currentActive, currentFiltered, fullState, previousSourceHealth, duplicateAudit, replacementQueue, incidents); err != nil {
 		return err
+	}
+	if err := saveOSINTIncidents(ctx, cfg, incidents); err != nil {
+		fmt.Fprintf(r.stderr, "WARN osint incidents save: %v\n", err)
 	}
 	if err := r.writeNoiseMetrics(ctx, cfg, currentActive, db); err != nil {
 		fmt.Fprintf(r.stderr, "WARN noise metrics: %v\n", err)

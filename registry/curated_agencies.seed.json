@@ -329,5 +329,214 @@
       "label": "Report to NCSC",
       "url": "https://www.ncsc.gov.uk/section/about-this-website/report-scam-website"
     }
+  },
+  {
+    "type": "nvd-json",
+    "source": {
+      "source_id": "nvd-recent",
+      "authority_name": "NIST National Vulnerability Database",
+      "country": "United States",
+      "country_code": "US",
+      "region": "North America",
+      "authority_type": "cert",
+      "base_url": "https://nvd.nist.gov",
+      "scope": "international",
+      "is_curated": true,
+      "is_high_value": true,
+      "language_code": "en"
+    },
+    "feed_url": "https://services.nvd.nist.gov/rest/json/cves/2.0",
+    "category": "cyber_advisory",
+    "region_tag": "INT",
+    "lat": 39.14,
+    "lng": -77.22,
+    "max_items": 40,
+    "reporting": {
+      "label": "NVD Vulnerability Search",
+      "url": "https://nvd.nist.gov/vuln/search"
+    }
+  },
+  {
+    "type": "epss-csv",
+    "source": {
+      "source_id": "first-epss",
+      "authority_name": "FIRST EPSS",
+      "country": "United States",
+      "country_code": "US",
+      "region": "North America",
+      "authority_type": "public_safety_program",
+      "base_url": "https://www.first.org",
+      "scope": "international",
+      "is_curated": true,
+      "is_high_value": true,
+      "language_code": "en"
+    },
+    "feed_url": "https://epss.empiricalsecurity.com/epss_scores-current.csv.gz",
+    "category": "cyber_advisory",
+    "region_tag": "INT",
+    "lat": 38.88,
+    "lng": -77.02,
+    "max_items": 30,
+    "reporting": {
+      "label": "EPSS Scores",
+      "url": "https://www.first.org/epss"
+    }
+  },
+  {
+    "type": "urlhaus-csv",
+    "source": {
+      "source_id": "urlhaus-recent",
+      "authority_name": "URLhaus Malware URLs",
+      "country": "Switzerland",
+      "country_code": "CH",
+      "region": "International",
+      "authority_type": "public_safety_program",
+      "base_url": "https://urlhaus.abuse.ch",
+      "scope": "international",
+      "is_curated": true,
+      "is_high_value": true,
+      "language_code": "en"
+    },
+    "feed_url": "https://urlhaus.abuse.ch/downloads/csv_recent/",
+    "category": "cyber_advisory",
+    "region_tag": "INT",
+    "lat": 46.95,
+    "lng": 7.45,
+    "max_items": 30,
+    "reporting": {
+      "label": "Report to abuse.ch",
+      "url": "https://urlhaus.abuse.ch/report/"
+    }
+  },
+  {
+    "type": "feodo-json",
+    "source": {
+      "source_id": "feodo-botnet",
+      "authority_name": "Feodo Tracker C2 Blocklist",
+      "country": "Switzerland",
+      "country_code": "CH",
+      "region": "International",
+      "authority_type": "public_safety_program",
+      "base_url": "https://feodotracker.abuse.ch",
+      "scope": "international",
+      "is_curated": true,
+      "is_high_value": true,
+      "language_code": "en"
+    },
+    "feed_url": "https://feodotracker.abuse.ch/downloads/ipblocklist.json",
+    "category": "cyber_advisory",
+    "region_tag": "INT",
+    "lat": 46.95,
+    "lng": 7.45,
+    "max_items": 30,
+    "reporting": {
+      "label": "Feodo Tracker",
+      "url": "https://feodotracker.abuse.ch"
+    }
+  },
+  {
+    "type": "un-sanctions-xml",
+    "source": {
+      "source_id": "un-sanctions",
+      "authority_name": "UN Security Council Sanctions",
+      "country": "United States",
+      "country_code": "US",
+      "region": "International",
+      "authority_type": "national_security",
+      "base_url": "https://www.un.org/securitycouncil/sanctions",
+      "scope": "international",
+      "is_curated": true,
+      "is_high_value": true,
+      "language_code": "en"
+    },
+    "feed_url": "https://scsanctions.un.org/resources/xml/en/consolidated.xml",
+    "category": "terrorism_tip",
+    "region_tag": "INT",
+    "lat": 40.75,
+    "lng": -73.97,
+    "max_items": 50,
+    "reporting": {
+      "label": "UN Sanctions Committees",
+      "url": "https://www.un.org/securitycouncil/sanctions/information"
+    }
+  },
+  {
+    "type": "ofac-sdn-xml",
+    "source": {
+      "source_id": "ofac-sdn",
+      "authority_name": "US Treasury OFAC SDN List",
+      "country": "United States",
+      "country_code": "US",
+      "region": "North America",
+      "authority_type": "national_security",
+      "base_url": "https://www.treasury.gov",
+      "scope": "national",
+      "is_curated": true,
+      "is_high_value": true,
+      "language_code": "en"
+    },
+    "feed_url": "https://www.treasury.gov/ofac/downloads/sdn.xml",
+    "category": "terrorism_tip",
+    "region_tag": "US",
+    "lat": 38.89,
+    "lng": -77.03,
+    "max_items": 50,
+    "reporting": {
+      "label": "OFAC Sanctions Search",
+      "url": "https://sanctionssearch.ofac.treas.gov/"
+    }
+  },
+  {
+    "type": "opensanctions-json",
+    "source": {
+      "source_id": "opensanctions",
+      "authority_name": "OpenSanctions",
+      "country": "Global",
+      "country_code": "INT",
+      "region": "International",
+      "authority_type": "public_safety_program",
+      "base_url": "https://www.opensanctions.org",
+      "scope": "international",
+      "is_curated": true,
+      "is_high_value": true,
+      "language_code": "en"
+    },
+    "feed_url": "https://data.opensanctions.org/datasets/latest/sanctions/index.json",
+    "category": "terrorism_tip",
+    "region_tag": "INT",
+    "lat": 52.52,
+    "lng": 13.41,
+    "max_items": 50,
+    "reporting": {
+      "label": "OpenSanctions Search",
+      "url": "https://www.opensanctions.org/"
+    }
+  },
+  {
+    "type": "imb-piracy-html",
+    "fetch_mode": "browser",
+    "source": {
+      "source_id": "imb-piracy-warnings",
+      "authority_name": "IMB Piracy Reporting Centre",
+      "country": "United Kingdom",
+      "country_code": "GB",
+      "region": "International",
+      "authority_type": "public_safety_program",
+      "base_url": "https://icc-ccs.org",
+      "scope": "international",
+      "is_curated": true,
+      "is_high_value": true,
+      "language_code": "en"
+    },
+    "feed_url": "https://icc-ccs.org/piracy-and-armed-robbery-prone-areas-and-warnings/",
+    "category": "maritime_security",
+    "region_tag": "INT",
+    "lat": 51.51,
+    "lng": -0.12,
+    "max_items": 20,
+    "reporting": {
+      "label": "IMB Piracy Reporting Centre",
+      "url": "https://icc-ccs.org/imb-piracy-reporting-centre-2/"
+    }
   }
 ]

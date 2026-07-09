@@ -7,11 +7,14 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
+  GitBranch,
   Radar,
   ShieldAlert,
   TrendingUp,
 } from "lucide-react";
+import { isIncidentMember } from "@/lib/incident-links";
 import type { Alert, AlertCategory } from "@/types/alert";
+import type { IncidentSummary } from "@/types/incident";
 import type { SourceHealthDocument } from "@/types/source-health";
 import { categoryLabels, categoryBadge, categoryOrder } from "@/lib/severity";
 import { alertMatchesRegionFilter } from "@/lib/regions";
@@ -42,6 +45,12 @@ interface Props {
   onSelectCountry: (countryCode: string) => void;
   severityFilter: SeverityFilter;
   onSeverityFilterChange: (filter: SeverityFilter) => void;
+  incidentFilter?: boolean;
+  onIncidentFilterChange?: (enabled: boolean) => void;
+  incidentSummaries?: IncidentSummary[];
+  incidentsApiAvailable?: boolean;
+  incidentMemberIds?: Set<string>;
+  onOpenRelations?: () => void;
   onSearchTerm?: (term: string) => void;
 }
 
@@ -58,6 +67,12 @@ export function FeedDirectory({
   onSelectCountry,
   severityFilter,
   onSeverityFilterChange,
+  incidentFilter = false,
+  onIncidentFilterChange,
+  incidentSummaries = [],
+  incidentsApiAvailable = false,
+  incidentMemberIds = new Set<string>(),
+  onOpenRelations,
   onSearchTerm,
 }: Props) {
   const [now, setNow] = useState(() => Date.now());
@@ -190,13 +205,17 @@ export function FeedDirectory({
       : totalRegistered > 0
         ? totalRegistered
         : uniqueFeeds.size;
+    const linkedInFeed = summaryAlerts.filter((alert) => isIncidentMember(alert) || incidentMemberIds.has(alert.alert_id)).length;
+    const linkedClusters = incidentsApiAvailable ? incidentSummaries.length : linkedInFeed;
     return {
       alerts: summaryAlerts.length,
       countries: uniqueCountries.size,
       feeds: uniqueFeeds.size,
       totalFeeds,
+      linkedClusters,
+      linkedInFeed,
     };
-  }, [summaryAlerts, sourceHealth, stableTotalSources]);
+  }, [summaryAlerts, sourceHealth, stableTotalSources, incidentSummaries.length, incidentsApiAvailable, incidentMemberIds]);
 
   const toggleSource = (sourceId: string) => {
     if (selectedSourceIds.includes(sourceId)) {
@@ -298,6 +317,31 @@ export function FeedDirectory({
             <div className="uppercase tracking-[0.1em] text-siem-muted" style={{ fontSize: "0.6rem" }}>Feeds</div>
           </div>
         </div>
+
+        {zoneSummary.linkedClusters > 0 ? (
+          <button
+            type="button"
+            onClick={() => {
+              if (incidentsApiAvailable && onOpenRelations) {
+                onOpenRelations();
+                return;
+              }
+              onIncidentFilterChange?.(!incidentFilter);
+            }}
+            className={`flex w-full items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-4xs uppercase tracking-[0.14em] transition-colors ${
+              incidentFilter
+                ? "border-siem-accent/45 bg-siem-accent/12 text-siem-text"
+                : "border-siem-border bg-siem-panel-strong text-siem-muted hover:border-siem-accent/30"
+            }`}
+          >
+            <GitBranch size={10} className="text-siem-accent" />
+            <span>
+              {zoneSummary.linkedClusters} linked incident{zoneSummary.linkedClusters === 1 ? "" : "s"}
+              {incidentsApiAvailable ? "" : ` · ${zoneSummary.linkedInFeed} in feed`}
+              {incidentsApiAvailable ? " · open graph" : incidentFilter ? " · filter on" : ""}
+            </span>
+          </button>
+        ) : null}
 
         {/* ── Category breakdown ──────────────────────────────────── */}
         <div>

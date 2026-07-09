@@ -11,10 +11,15 @@ import { useAlertState } from "@/hooks/useAlertState";
 import { useSearch } from "@/hooks/useSearch";
 import { useSourceHealth } from "@/hooks/useSourceHealth";
 import { useCurrentConflicts } from "@/hooks/useCurrentConflicts";
+import { useIncidents } from "@/hooks/useIncidents";
+import { useIncidentDetail } from "@/hooks/useIncidentDetail";
 import type { ConflictCountryFocus } from "@/types/current-conflicts";
+import type { IncidentSummary } from "@/types/incident";
 import { alertMatchesRegionFilter } from "@/lib/regions";
+import { withCentroidCoords } from "@/lib/country-centroids";
 import { alertMatchesConflictLens, getConflictLensById } from "@/lib/conflict-lenses";
-import type { AlertCategory } from "@/types/alert";
+import type { Alert, AlertCategory } from "@/types/alert";
+import { isIncidentMember } from "@/lib/incident-links";
 
 type SeverityFilter = "critical" | "high" | null;
 
@@ -23,6 +28,9 @@ const GlobeView = lazy(() => import("@/components/GlobeView").then((mod) => ({ d
 const AlertFeed = lazy(() => import("@/components/AlertFeed").then((mod) => ({ default: mod.AlertFeed })));
 const AlertDetail = lazy(() => import("@/components/AlertDetail").then((mod) => ({ default: mod.AlertDetail })));
 const FeedDirectory = lazy(() => import("@/components/FeedDirectory").then((mod) => ({ default: mod.FeedDirectory })));
+const IncidentRelationsPanel = lazy(() =>
+  import("@/components/IncidentRelationsPanel").then((mod) => ({ default: mod.IncidentRelationsPanel })),
+);
 
 function normalizeConflictRegion(raw: string): string {
   const value = raw.trim().toLowerCase();
@@ -80,10 +88,15 @@ export default function App() {
   const { alerts: stateAlerts } = useAlertState();
   const { sourceHealth, isLoading: isSourceHealthLoading } = useSourceHealth();
   const { conflicts: currentConflicts } = useCurrentConflicts();
+  const { incidents, isAvailable: incidentsApiAvailable } = useIncidents(100);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([]);
   const [categoryFilter, setCategoryFilter] = useState<AlertCategory | "all">("all");
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>(null);
+  const [incidentFilter, setIncidentFilter] = useState(false);
+  const [selectedIncident, setSelectedIncident] = useState<IncidentSummary | null>(null);
+  const [previewIncident, setPreviewIncident] = useState<IncidentSummary | null>(null);
+  const [leftPanel, setLeftPanel] = useState<"intel" | "relations">("intel");
   const [regionFilter, setRegionFilter] = useState<string>("Europe");
   const [conflictLensId, setConflictLensId] = useState<string | null>(null);
   const [conflictCountryFocus, setConflictCountryFocus] = useState<ConflictCountryFocus | null>(null);
@@ -97,10 +110,65 @@ export default function App() {
   const preLensRegionRef = useRef<string | null>(null);
   const preLensSourcesRef = useRef<string[] | null>(null);
   const [utcTime, setUtcTime] = useState(() => new Date().toISOString().slice(0, 19).replace("T", " ") + "Z");
+  const { detail: selectedIncidentDetail } = useIncidentDetail(selectedIncident?.incident_id, selectedIncident !== null);
+  const { detail: previewIncidentDetail } = useIncidentDetail(
+    previewIncident?.incident_id,
+    previewIncident !== null && selectedIncident === null,
+  );
   const activeDynamicConflict = useMemo(
     () => (conflictLensId ? currentConflicts.find((conflict) => conflict.lensIds.includes(conflictLensId)) ?? null : null),
     [conflictLensId, currentConflicts],
   );
+  const incidentMemberIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const incident of incidents) {
+      for (const id of incident.alert_ids ?? []) {
+        ids.add(id);
+      }
+    }
+    return ids;
+  }, [incidents]);
+  const matchesIncidentFilter = useCallback(
+    (alert: Alert) => isIncidentMember(alert) || incidentMemberIds.has(alert.alert_id),
+    [incidentMemberIds],
+  );
+  const selectedIncidentAlertIds = useMemo(() => {
+    if (!selectedIncident) return new Set<string>();
+    return new Set(selectedIncidentDetail?.alert_ids ?? selectedIncident.alert_ids);
+  }, [selectedIncident, selectedIncidentDetail?.alert_ids]);
+  const selectedIncidentAlerts = useMemo(() => {
+    if (!selectedIncident) return [];
+    const byID = new Map<string, Alert>();
+    for (const alert of selectedIncidentDetail?.alerts ?? []) {
+      byID.set(alert.alert_id, alert);
+    }
+    for (const alert of [...alerts, ...stateAlerts]) {
+      if (selectedIncidentAlertIds.has(alert.alert_id) && !byID.has(alert.alert_id)) {
+        byID.set(alert.alert_id, alert);
+      }
+    }
+    return [...byID.values()].sort((a, b) => new Date(b.last_seen).getTime() - new Date(a.last_seen).getTime());
+  }, [alerts, selectedIncident, selectedIncidentAlertIds, selectedIncidentDetail?.alerts, stateAlerts]);
+  // Map variants: ungeocoded members fall back to their event-country
+  // centroid so every cluster member is visible when focused or previewed.
+  const selectedIncidentMapAlerts = useMemo(
+    () => selectedIncidentAlerts.map(withCentroidCoords),
+    [selectedIncidentAlerts],
+  );
+  const previewIncidentAlerts = useMemo(() => {
+    if (!previewIncident || selectedIncident) return [];
+    const ids = new Set(previewIncident.alert_ids);
+    const byID = new Map<string, Alert>();
+    for (const alert of previewIncidentDetail?.alerts ?? []) {
+      byID.set(alert.alert_id, withCentroidCoords(alert));
+    }
+    for (const alert of [...alerts, ...stateAlerts]) {
+      if (ids.has(alert.alert_id) && !byID.has(alert.alert_id)) {
+        byID.set(alert.alert_id, withCentroidCoords(alert));
+      }
+    }
+    return [...byID.values()];
+  }, [alerts, previewIncident, previewIncidentDetail?.alerts, selectedIncident, stateAlerts]);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -140,6 +208,7 @@ export default function App() {
     setConflictCountryFocus(null);
     setSelectedSourceIds([]);
     setSelectedId(null);
+    setSelectedIncident(null);
   }, []);
 
   const handleConflictLensChange = useCallback((nextLensId: string | null) => {
@@ -179,6 +248,7 @@ export default function App() {
       preLensSourcesRef.current = null;
     }
     setSelectedId(null);
+    setSelectedIncident(null);
   }, [conflictLensId, currentConflicts, regionFilter, selectedSourceIds]);
 
   const regionScopedAlerts = useMemo(() => {
@@ -247,8 +317,11 @@ export default function App() {
     if (severityFilter) {
       filtered = filtered.filter((alert) => alert.severity === severityFilter);
     }
+    if (incidentFilter) {
+      filtered = filtered.filter(matchesIncidentFilter);
+    }
     return filtered;
-  }, [categoryFilter, regionScopedAlerts, selectedSourceIds, severityFilter]);
+  }, [categoryFilter, incidentFilter, matchesIncidentFilter, regionScopedAlerts, selectedSourceIds, severityFilter]);
 
   const stateRegionScopedAlerts = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -297,8 +370,11 @@ export default function App() {
     if (severityFilter) {
       filtered = filtered.filter((alert) => alert.severity === severityFilter);
     }
+    if (incidentFilter) {
+      filtered = filtered.filter(matchesIncidentFilter);
+    }
     return filtered;
-  }, [categoryFilter, stateRegionScopedAlerts, selectedSourceIds, severityFilter]);
+  }, [categoryFilter, incidentFilter, matchesIncidentFilter, stateRegionScopedAlerts, selectedSourceIds, severityFilter]);
 
   const handleCountrySelect = useCallback((countryCode: string) => {
     const nextRegion = `country:${countryCode}`;
@@ -306,6 +382,7 @@ export default function App() {
     setSelectedSourceIds([]);
     setCategoryFilter("all");
     setSelectedId(null);
+    setSelectedIncident(null);
     // Switch right panel to now+history so counts match left panel totals
     setRequestedViewModeKey((k) => k + 1);
     setRequestedViewMode("now_history");
@@ -326,6 +403,7 @@ export default function App() {
 
   const handleCategorySelect = useCallback((category: AlertCategory | "all") => {
     setCategoryFilter(category);
+    setSelectedIncident(null);
     // Switch right panel to now+history so counts match left panel totals
     setRequestedViewModeKey((k) => k + 1);
     setRequestedViewMode("now_history");
@@ -334,15 +412,62 @@ export default function App() {
   const handleSourceSelectionChange = useCallback((sourceIds: string[]) => {
     setSelectedSourceIds(sourceIds);
     setSelectedId(null);
+    setSelectedIncident(null);
     // Switch right panel to now+history so counts match left panel totals
     setRequestedViewModeKey((k) => k + 1);
     setRequestedViewMode("now_history");
   }, []);
 
+  const handleIncidentFilterChange = useCallback((enabled: boolean) => {
+    setIncidentFilter(enabled);
+    setSelectedId(null);
+    setSelectedIncident(null);
+    // Incident members can be in history, so show both queues when this filter changes.
+    setRequestedViewModeKey((k) => k + 1);
+    setRequestedViewMode("now_history");
+  }, []);
+
+  const handleSeverityFilterChange = useCallback((filter: SeverityFilter) => {
+    setSeverityFilter(filter);
+    setSelectedIncident(null);
+  }, []);
+
+  const handleSearchChange = useCallback((query: string) => {
+    setSearchQuery(query);
+    setSelectedIncident(null);
+  }, [setSearchQuery]);
+
+  const handleMenuChange = useCallback((view: string) => {
+    const next = view === "relations" ? "relations" : "intel";
+    setLeftPanel(next);
+    // Leaving the relations view must release the cluster focus, otherwise
+    // the map and queue stay pinned to the incident members.
+    if (next === "intel") {
+      setSelectedIncident(null);
+      setPreviewIncident(null);
+    }
+  }, []);
+
+  const handleIncidentSelect = useCallback((incident: IncidentSummary) => {
+    setSelectedIncident(incident);
+    setPreviewIncident(null);
+    setSelectedId(incident.primary_alert_id);
+    setSelectedSourceIds([]);
+    setCategoryFilter("all");
+    setSeverityFilter(null);
+    setRegionFilter("all");
+    setConflictLensId(null);
+    setConflictCountryFocus(null);
+    setIncidentFilter(false);
+    setRequestedViewModeKey((k) => k + 1);
+    setRequestedViewMode("now_history");
+    setMobilePane("alerts");
+  }, []);
 
   const selectedAlert = selectedId
     ? scopedAlerts.find((a) => a.alert_id === selectedId) ??
       scopedStateAlerts.find((a) => a.alert_id === selectedId) ??
+      selectedIncidentAlerts.find((a) => a.alert_id === selectedId) ??
       alerts.find((a) => a.alert_id === selectedId) ??
       stateAlerts.find((a) => a.alert_id === selectedId) ??
       null
@@ -365,11 +490,15 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const exists = alerts.some((a) => a.alert_id === selectedId) || stateAlerts.some((a) => a.alert_id === selectedId);
+    const exists = selectedId !== null && (
+      alerts.some((a) => a.alert_id === selectedId) ||
+      stateAlerts.some((a) => a.alert_id === selectedId) ||
+      selectedIncidentAlertIds.has(selectedId)
+    );
     if (selectedId && !exists) {
       setSelectedId(null);
     }
-  }, [alerts, stateAlerts, selectedId]);
+  }, [alerts, selectedIncidentAlertIds, stateAlerts, selectedId]);
 
   return (
     <div className="flex h-[100dvh] flex-col bg-siem-bg text-siem-text">
@@ -382,9 +511,9 @@ export default function App() {
         selectedSourceIds={selectedSourceIds}
         onSelectedSourceIdsChange={handleSourceSelectionChange}
         searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        activeMenu="overview"
-        onMenuChange={() => {}}
+        onSearchChange={handleSearchChange}
+        activeMenu={leftPanel === "relations" ? "relations" : "overview"}
+        onMenuChange={handleMenuChange}
         alerts={alerts}
       />
 
@@ -392,32 +521,52 @@ export default function App() {
       <div className="relative flex min-h-0 flex-1 gap-3 px-3 pb-3 pt-3 md:px-4">
         {/* Left panel — intel overview */}
         <div className={`${mobilePane === "intel" ? "block" : "hidden"} md:block w-full md:w-[20rem] md:shrink-0 min-h-0`}>
-          <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-siem-muted">Loading intel panel...</div>}>
-            <FeedDirectory
-              view="overview"
-              alerts={regionScopedAlerts}
-              historicalAlerts={stateRegionScopedAlerts}
-              sourceHealth={sourceHealth}
-              isLoading={isSourceHealthLoading}
-              selectedSourceIds={selectedSourceIds}
-              onSelectSourceIdsChange={handleSourceSelectionChange}
-              categoryFilter={categoryFilter}
-              onSelectCategory={handleCategorySelect}
-              regionFilter={regionFilter}
-              onSelectCountry={handleCountrySelect}
-              severityFilter={severityFilter}
-              onSeverityFilterChange={setSeverityFilter}
-              onSearchTerm={setSearchQuery}
-            />
-          </Suspense>
+          {leftPanel === "relations" ? (
+            <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-siem-muted">Loading relations...</div>}>
+              <IncidentRelationsPanel
+                alerts={alerts}
+                historicalAlerts={stateAlerts}
+                regionFilter={regionFilter}
+                onSelectIncident={handleIncidentSelect}
+                onPreviewIncident={setPreviewIncident}
+              />
+            </Suspense>
+          ) : (
+            <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-siem-muted">Loading intel panel...</div>}>
+              <FeedDirectory
+                view="overview"
+                alerts={regionScopedAlerts}
+                historicalAlerts={stateRegionScopedAlerts}
+                sourceHealth={sourceHealth}
+                isLoading={isSourceHealthLoading}
+                selectedSourceIds={selectedSourceIds}
+                onSelectSourceIdsChange={handleSourceSelectionChange}
+                categoryFilter={categoryFilter}
+                onSelectCategory={handleCategorySelect}
+                regionFilter={regionFilter}
+                onSelectCountry={handleCountrySelect}
+                severityFilter={severityFilter}
+                onSeverityFilterChange={handleSeverityFilterChange}
+                incidentFilter={incidentFilter}
+                onIncidentFilterChange={handleIncidentFilterChange}
+                incidentSummaries={incidents}
+                incidentsApiAvailable={incidentsApiAvailable}
+                incidentMemberIds={incidentMemberIds}
+                onOpenRelations={() => setLeftPanel("relations")}
+                onSearchTerm={handleSearchChange}
+              />
+            </Suspense>
+          )}
         </div>
 
         {/* Center — map */}
         <div className={`${mobilePane === "map" ? "block" : "hidden"} md:block min-h-0 flex-1 min-w-0`}>
           <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-siem-muted">Loading map...</div>}>
             <GlobeView
-              alerts={scopedAlerts}
-              historicalAlerts={scopedStateAlerts}
+              alerts={selectedIncident ? selectedIncidentMapAlerts : scopedAlerts}
+              historicalAlerts={selectedIncident ? selectedIncidentMapAlerts : scopedStateAlerts}
+              previewAlerts={previewIncidentAlerts}
+              focusAlerts={selectedIncidentMapAlerts}
               selectedId={selectedId}
               onSelect={setSelectedId}
               regionFilter={regionFilter}
@@ -435,6 +584,21 @@ export default function App() {
         {/* Right panel — alert queue (contained, scrollable) */}
         <div className={`${mobilePane === "alerts" ? "block" : "hidden"} md:block w-full md:w-[24rem] md:shrink-0 min-h-0`}>
           <div className="flex h-full flex-col overflow-hidden rounded-[1.6rem] border border-siem-border bg-siem-panel/90 shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
+            {selectedIncident ? (
+              <div className="flex items-center justify-between gap-2 border-b border-siem-accent/30 bg-siem-accent/10 px-3 py-2">
+                <div className="min-w-0 text-xxs text-siem-text">
+                  <span className="uppercase tracking-[0.14em] text-siem-muted">Cluster focus</span>
+                  <span className="ml-2 truncate">{selectedIncident.title}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedIncident(null)}
+                  className="shrink-0 rounded-full border border-siem-border px-2 py-0.5 text-xxs text-siem-muted hover:border-siem-accent/40 hover:text-siem-text"
+                >
+                  ✕ clear
+                </button>
+              </div>
+            ) : null}
             {isLoading ? (
               <div className="flex flex-1 items-center justify-center text-sm text-siem-muted">
                 Loading live alert queue...
@@ -442,8 +606,8 @@ export default function App() {
             ) : (
               <Suspense fallback={<div className="flex flex-1 items-center justify-center text-sm text-siem-muted">Loading alert queue...</div>}>
                 <AlertFeed
-                  alerts={scopedAlerts}
-                  historicalAlerts={scopedStateAlerts}
+                  alerts={selectedIncident ? selectedIncidentAlerts : scopedAlerts}
+                  historicalAlerts={selectedIncident ? selectedIncidentAlerts : scopedStateAlerts}
                   selectedId={selectedId}
                   onSelect={setSelectedId}
                   categoryFilter={categoryFilter}
@@ -457,6 +621,7 @@ export default function App() {
                   }}
                   requestedViewMode={requestedViewMode}
                   requestedViewModeKey={requestedViewModeKey}
+                  includeInfoInTimeline={selectedIncident !== null}
                 />
               </Suspense>
             )}
@@ -497,7 +662,12 @@ export default function App() {
             />
             <div className="w-full overflow-hidden rounded-[1.6rem] border border-siem-border bg-siem-panel-strong shadow-[0_28px_100px_rgba(0,0,0,0.45)]">
               <Suspense fallback={<div className="flex h-full w-full items-center justify-center text-sm text-siem-muted">Loading alert details...</div>}>
-                <AlertDetail alert={selectedAlert} onClose={handleClose} />
+                <AlertDetail
+                  alert={selectedAlert}
+                  alerts={selectedIncident ? selectedIncidentAlerts : scopedAlerts}
+                  onClose={handleClose}
+                  onSelectAlert={setSelectedId}
+                />
               </Suspense>
             </div>
           </div>

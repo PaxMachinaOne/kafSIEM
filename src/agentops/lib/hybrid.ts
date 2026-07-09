@@ -11,6 +11,7 @@ interface FusionIndicators {
   vendors: Set<string>;
   products: Set<string>;
   cves: Set<string>;
+  entities: Set<string>;
 }
 
 export function buildFusionMatches(flow: AgentOpsFlow | null, messages: AgentOpsMessage[], alerts: Alert[]): AgentOpsFusionMatch[] {
@@ -29,9 +30,15 @@ export function buildFusionMatches(flow: AgentOpsFlow | null, messages: AgentOps
       source: alert.source.authority_name,
       canonical_url: alert.canonical_url,
       match_reasons: reasons,
+      incident_id: alert.incident?.incident_id,
+      incident_member_count: alert.incident?.member_count,
     });
   }
-  return out.sort((a, b) => b.match_reasons.length - a.match_reasons.length || a.title.localeCompare(b.title));
+  return out.sort((a, b) => {
+    const incidentRank = Number(Boolean(b.incident_id)) - Number(Boolean(a.incident_id));
+    if (incidentRank !== 0) return incidentRank;
+    return b.match_reasons.length - a.match_reasons.length || a.title.localeCompare(b.title);
+  });
 }
 
 function matchReasons(flow: AgentOpsFlow, alert: Alert, indicators: FusionIndicators): string[] {
@@ -72,10 +79,31 @@ function matchReasons(flow: AgentOpsFlow, alert: Alert, indicators: FusionIndica
       break;
     }
   }
+  const link = alert.incident;
+  if (link?.shared_cves?.length) {
+    for (const cve of link.shared_cves) {
+      const normalized = cve.toUpperCase();
+      if (indicators.cves.has(normalized)) {
+        reasons.push(`incident-cve:${normalized}`);
+      }
+    }
+  }
+  if (link?.shared_entities?.length) {
+    for (const entity of link.shared_entities) {
+      const normalized = entity.trim().toLowerCase();
+      if (!normalized) continue;
+      if (indicators.entities.has(normalized) || haystack.includes(normalized)) {
+        reasons.push(`incident-entity:${entity}`);
+      }
+    }
+  }
+  if (link && link.member_count >= 2 && reasons.some((reason) => reason.startsWith("incident-"))) {
+    reasons.push(`incident:${link.incident_id}`);
+  }
   if (flowTime !== null && alertTime !== null && Math.abs(flowTime - alertTime) <= TIME_WINDOW_HOURS * 60 * 60 * 1000) {
     reasons.push("time-window:72h");
   }
-  return reasons;
+  return uniqueReasons(reasons);
 }
 
 function extractIndicators(messages: AgentOpsMessage[]): FusionIndicators {
@@ -86,6 +114,7 @@ function extractIndicators(messages: AgentOpsMessage[]): FusionIndicators {
     vendors: new Set<string>(),
     products: new Set<string>(),
     cves: new Set<string>(),
+    entities: new Set<string>(),
   };
   for (const message of messages) {
     for (const value of collectValues(parseMessageContent(message))) {
@@ -134,11 +163,25 @@ function addIndicators(indicators: FusionIndicators, key: string, rawValue: stri
   if (key.includes("sector") || key.includes("vertical")) indicators.sectors.add(value);
   if (key.includes("vendor")) indicators.vendors.add(value);
   if (key.includes("product")) indicators.products.add(value);
-  if (key.includes("cve")) {
+  if (key.includes("cve") || key.includes("vulnerability")) {
     for (const cve of rawValue.match(CVE_PATTERN) ?? []) {
       indicators.cves.add(cve.toUpperCase());
     }
   }
+  if (key.includes("entity") || key.includes("actor") || key.includes("threat") || key.includes("group") || key.includes("organization")) {
+    indicators.entities.add(value);
+  }
+}
+
+function uniqueReasons(reasons: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const reason of reasons) {
+    if (seen.has(reason)) continue;
+    seen.add(reason);
+    out.push(reason);
+  }
+  return out;
 }
 
 function parseTime(value: string): number | null {

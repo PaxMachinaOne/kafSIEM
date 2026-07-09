@@ -27,6 +27,7 @@ RELEASE_LEVEL ?= patch
 	go-fmt go-fmt-check go-test go-race go-cover go-vet go-codeql commit-check \
 	docker-build docker-up docker-down docker-logs docker-shell \
 	dev-start dev-start-collector dev-start-api dev-stop dev-stop-clean dev-restart dev-restart-clean dev-logs dev-ensure-env \
+	demo-osint demo-ontology demo-fusion \
 	code-ql code-ql-summary \
 	release-patch release-minor release-major \
 	branch-protection
@@ -211,6 +212,15 @@ dev-sync-dlq: ## Copy the dead-letter queue from the running container to update
 
 dev-logs: ## Tail local dev stack logs
 	$(DOCKER_COMPOSE) logs -f --tail=200
+
+demo-osint: npm-install-if-needed ## OSINT relations demo with bundled fixtures (no Docker)
+	npm run demo:osint
+
+demo-ontology: npm-install-if-needed ## Operations ontology desk demo (no Docker)
+	npm run demo:ontology
+
+demo-fusion: npm-install-if-needed ## Fusion desk demo (no Docker)
+	npm run demo:fusion
 
 code-ql: ## Run CodeQL CLI locally for JavaScript/TypeScript
 	@command -v codeql >/dev/null 2>&1 || { echo "codeql CLI is required"; exit 1; }

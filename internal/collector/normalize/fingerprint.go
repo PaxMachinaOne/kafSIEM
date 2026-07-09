@@ -49,6 +49,7 @@ func buildEntityDict() *entityDict {
 	paths := []string{
 		"registry/terror_actor_aliases.json",
 		"/app/registry/terror_actor_aliases.json",
+		"../../../registry/terror_actor_aliases.json",
 	}
 
 	var groups []aliasGroup
@@ -94,6 +95,9 @@ func (d *entityDict) extractEntities(tokens []string) (entities []string, remain
 	seen := map[string]bool{}
 
 	for _, phrase := range d.phrases {
+		if !usableEntityPhrase(phrase) {
+			continue
+		}
 		pLen := len(phrase.tokens)
 		for i := 0; i <= len(tokens)-pLen; i++ {
 			if consumed[i] {
@@ -124,6 +128,13 @@ func (d *entityDict) extractEntities(tokens []string) (entities []string, remain
 		}
 	}
 	return entities, remainder
+}
+
+func usableEntityPhrase(phrase entityPhrase) bool {
+	if len(phrase.tokens) == 1 && len(phrase.tokens[0]) < 3 {
+		return false
+	}
+	return len(phrase.tokens) > 0
 }
 
 // ---------- tokenization & stopword filtering ----------
@@ -334,7 +345,8 @@ func crossSourceDedup(alerts []model.Alert) ([]model.Alert, int) {
 		}
 	}
 
-	// From each cluster, keep the highest-scoring alert.
+	// From each cluster, keep the highest-scoring alert unless the cluster is an
+	// incident bundle — then retain every annotated member for analyst visibility.
 	kept := append([]model.Alert{}, passthrough...)
 	suppressed := 0
 	for _, c := range clusters {
@@ -342,6 +354,16 @@ func crossSourceDedup(alerts []model.Alert) ([]model.Alert, int) {
 			kept = append(kept, c.members[0].alert)
 			continue
 		}
+
+		incidentMembers := incidentClusterMembers(c.members)
+		if len(incidentMembers) >= 2 {
+			for _, member := range incidentMembers {
+				kept = append(kept, member.alert)
+			}
+			suppressed += len(c.members) - len(incidentMembers)
+			continue
+		}
+
 		sort.Slice(c.members, func(i, j int) bool {
 			si := alertScore(c.members[i].alert)
 			sj := alertScore(c.members[j].alert)
@@ -355,6 +377,35 @@ func crossSourceDedup(alerts []model.Alert) ([]model.Alert, int) {
 		suppressed += len(c.members) - 1
 	}
 	return kept, suppressed
+}
+
+func incidentClusterMembers(members []fingerprintedAlert) []fingerprintedAlert {
+	if len(members) < 2 {
+		return nil
+	}
+	incidentID := ""
+	for _, member := range members {
+		link := member.alert.Incident
+		if link == nil || link.MemberCount < 2 || strings.TrimSpace(link.IncidentID) == "" {
+			continue
+		}
+		if incidentID == "" {
+			incidentID = link.IncidentID
+		}
+		if link.IncidentID != incidentID {
+			return nil
+		}
+	}
+	if incidentID == "" {
+		return nil
+	}
+	out := make([]fingerprintedAlert, 0, len(members))
+	for _, member := range members {
+		if member.alert.Incident != nil && member.alert.Incident.IncidentID == incidentID {
+			out = append(out, member)
+		}
+	}
+	return out
 }
 
 func parseAlertTime(alert model.Alert) time.Time {

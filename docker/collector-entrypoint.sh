@@ -26,6 +26,7 @@ mkdir -p /data
 # Start fresh volumes with empty JSON documents to avoid serving stale
 # baked snapshots from previous registry revisions.
 init_json_if_missing /data/alerts.json '[]'
+init_json_if_missing /data/incidents.json '[]'
 init_json_if_missing /data/alerts-filtered.json '[]'
 init_json_if_missing /data/alerts-state.json '[]'
 init_json_if_missing /data/source-health.json '{"generated_at":"","critical_source_prefixes":[],"fail_on_critical_source_gap":false,"total_sources":0,"sources_ok":0,"sources_error":0,"duplicate_audit":{"suppressed_variant_duplicates":0,"repeated_title_groups_in_active":0,"repeated_title_samples":[]},"sources":[]}'
@@ -50,5 +51,8 @@ fi
 # This ensures new feeds (FBI API, travel warnings, etc.) from image
 # updates are picked up without manual intervention.
 kafsiem-collector --source-db /data/sources.db --curated-seed /app/registry/source_registry.json --source-db-merge-registry
+if [ -f /app/registry/curated_agencies.seed.json ]; then
+  kafsiem-collector --source-db /data/sources.db --curated-seed /app/registry/curated_agencies.seed.json --source-db-merge-registry
+fi
 
 exec kafsiem-collector "$@"

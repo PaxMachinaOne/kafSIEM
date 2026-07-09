@@ -177,6 +177,40 @@ func (c *Client) doFetch(ctx context.Context, rawURL string, followRedirects boo
 
 // HeadStatus performs a lightweight HEAD probe and returns the resulting HTTP
 // status code (or an error when the probe failed).
+// OpenStream returns the response body for large feeds that should be processed incrementally.
+func (c *Client) OpenStream(ctx context.Context, rawURL string, followRedirects bool, accept string) (io.ReadCloser, error) {
+	url := punycodeURL(rawURL)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("build request %s: %w", url, err)
+	}
+	req.Header.Set("User-Agent", c.userAgent)
+	if strings.TrimSpace(accept) != "" {
+		req.Header.Set("Accept", accept)
+	}
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	req.Header.Set("Accept-Encoding", "gzip, deflate, br")
+
+	client := c.httpClient
+	if !followRedirects {
+		client = noRedirectClient(c.httpClient)
+	}
+
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch %s: %w", url, err)
+	}
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		res.Body.Close()
+		return nil, fmt.Errorf("fetch %s: status %d", url, res.StatusCode)
+	}
+	if err := decompressBody(res); err != nil {
+		res.Body.Close()
+		return nil, fmt.Errorf("decompress %s: %w", url, err)
+	}
+	return res.Body, nil
+}
+
 func (c *Client) HeadStatus(ctx context.Context, rawURL string, followRedirects bool) (int, error) {
 	url := punycodeURL(rawURL)
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)

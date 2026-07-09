@@ -150,6 +150,11 @@ func (db *DB) Init(ctx context.Context) error {
 		`ALTER TABLE alerts ADD COLUMN event_country_code TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE alerts ADD COLUMN event_geo_source TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE alerts ADD COLUMN event_geo_confidence REAL NOT NULL DEFAULT 0`,
+		`ALTER TABLE osint_incidents ADD COLUMN countries_json TEXT NOT NULL DEFAULT '[]'`,
+		`ALTER TABLE osint_incidents ADD COLUMN malware_json TEXT NOT NULL DEFAULT '[]'`,
+		`ALTER TABLE osint_incidents ADD COLUMN sectors_json TEXT NOT NULL DEFAULT '[]'`,
+		`ALTER TABLE osint_incidents ADD COLUMN attack_type TEXT NOT NULL DEFAULT 'general'`,
+		`ALTER TABLE osint_incidents ADD COLUMN source_count INTEGER NOT NULL DEFAULT 0`,
 	} {
 		if _, err := db.sql.ExecContext(ctx, stmt); err != nil && !isDuplicateColumnError(err) {
 			return fmt.Errorf("migrate source DB schema: %w", err)
@@ -2097,7 +2102,8 @@ func defaultSourceQuality(src model.RegistrySource) float64 {
 	switch strings.TrimSpace(src.Type) {
 	case "rss", "travelwarning-atom":
 		score = 0.9
-	case "kev-json", "interpol-red-json", "interpol-yellow-json", "travelwarning-json":
+	case "kev-json", "nvd-json", "epss-csv", "interpol-red-json", "interpol-yellow-json", "travelwarning-json",
+		"un-sanctions-xml", "ofac-sdn-xml", "opensanctions-json", "feodo-json", "urlhaus-csv", "imb-piracy-html":
 		score = 0.95
 	case "html-list":
 		score = 0.62

@@ -9,6 +9,7 @@ and serves analyst workflows through a web UI and OpenAPI.
 | Goal | Document |
 |------|----------|
 | Product overview and quick start | [README](../README.md) |
+| Local dev targets (`make help`) | [Makefile](../Makefile) |
 | System design and package layout | [architecture.md](architecture.md) |
 | Docker, VM, installer, collector roles | [operations.md](operations.md) |
 | Kafka observer, volumes, backup, replay | [agentops-operator-guide.md](agentops-operator-guide.md) |
@@ -19,7 +20,7 @@ and serves analyst workflows through a web UI and OpenAPI.
 
 | Mode | `UI_MODE` | Summary |
 |------|-----------|---------|
-| OSINT | `OSINT` | External intelligence: alerts, globe, zone briefings |
+| OSINT | `OSINT` | External intelligence: alerts, globe, attack-relation clusters |
 | Operations | `AGENTOPS` | Kafka flow tracking, entity graph, ontology desk |
 | Fusion | `HYBRID` | Operations plus OSINT correlation in one UI |
 
@@ -40,9 +41,13 @@ Pack sources live under [`packs/`](../packs/).
 | Topic | Document |
 |-------|----------|
 | Alert categories and UI | [userguide.md](userguide.md) |
+| Attack relations and clustering | [userguide.md#attack-relations-clusters](userguide.md#attack-relations-clusters), [architecture.md#osint-attack-relations](architecture.md#osint-attack-relations) |
 | Source vetting | [source-vetting.md](source-vetting.md) |
 | ACLED integration | [acled.md](acled.md) |
 | Collector migration | [collector-migration.md](collector-migration.md) |
+
+OSINT incidents API (collector proxy): `GET /api/osint/incidents`,
+`GET /api/osint/incidents/{id}`.
 
 ## Configuration
 

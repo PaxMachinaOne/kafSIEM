@@ -26,6 +26,90 @@ type Alert struct {
 	FreshnessHours     int               `json:"freshness_hours"`
 	Reporting          ReportingMetadata `json:"reporting,omitempty"`
 	Triage             *Triage           `json:"triage,omitempty"`
+	Incident           *IncidentLink     `json:"incident,omitempty"`
+}
+
+// IncidentLink connects an alert to a corroborated OSINT incident cluster.
+type IncidentLink struct {
+	IncidentID      string   `json:"incident_id"`
+	MemberCount     int      `json:"member_count"`
+	SourceCount     int      `json:"source_count,omitempty"`
+	PrimaryAlertID  string   `json:"primary_alert_id,omitempty"`
+	Role            string   `json:"role,omitempty"`
+	RelatedAlertIDs []string `json:"related_alert_ids,omitempty"`
+	LinkReasons     []string `json:"link_reasons,omitempty"`
+	SharedCVEs      []string `json:"shared_cves,omitempty"`
+	SharedEntities  []string `json:"shared_entities,omitempty"`
+	SharedMalware   []string `json:"shared_malware,omitempty"`
+	SharedSectors   []string `json:"shared_sectors,omitempty"`
+	SharedCountries []string `json:"shared_countries,omitempty"`
+}
+
+// IncidentSummary is the index record written to incidents.json.
+type IncidentSummary struct {
+	IncidentID     string   `json:"incident_id"`
+	Title          string   `json:"title"`
+	Category       string   `json:"category"`
+	Severity       string   `json:"severity"`
+	MemberCount    int      `json:"member_count"`
+	SourceCount    int      `json:"source_count,omitempty"`
+	PrimaryAlertID string   `json:"primary_alert_id"`
+	AlertIDs       []string `json:"alert_ids"`
+	LinkReasons    []string `json:"link_reasons"`
+	CVEs           []string `json:"cves,omitempty"`
+	Entities       []string `json:"entities,omitempty"`
+	Malware        []string `json:"malware,omitempty"`
+	Sectors        []string `json:"sectors,omitempty"`
+	Countries      []string `json:"countries,omitempty"`
+	AttackType     string   `json:"attack_type,omitempty"`
+	FirstSeen      string   `json:"first_seen"`
+	LastSeen       string   `json:"last_seen"`
+}
+
+// IncidentTimelineEntry is a chronological member alert in an incident overview.
+type IncidentTimelineEntry struct {
+	AlertID       string `json:"alert_id"`
+	FirstSeen     string `json:"first_seen"`
+	LastSeen      string `json:"last_seen,omitempty"`
+	SourceID      string `json:"source_id"`
+	AuthorityName string `json:"authority_name"`
+	Title         string `json:"title"`
+	Severity      string `json:"severity"`
+	Category      string `json:"category"`
+	CountryCode   string `json:"country_code,omitempty"`
+	Role          string `json:"role,omitempty"`
+}
+
+// IncidentGraphNode is an alert node in the incident relation graph.
+type IncidentGraphNode struct {
+	ID          string  `json:"id"`
+	Kind        string  `json:"kind"`
+	Label       string  `json:"label"`
+	SourceID    string  `json:"source_id"`
+	CountryCode string  `json:"country_code,omitempty"`
+	Severity    string  `json:"severity"`
+	Role        string  `json:"role,omitempty"`
+	Lat         float64 `json:"lat,omitempty"`
+	Lng         float64 `json:"lng,omitempty"`
+}
+
+// IncidentGraphEdge links two alert nodes with an explainable reason.
+type IncidentGraphEdge struct {
+	From   string `json:"from"`
+	To     string `json:"to"`
+	Reason string `json:"reason"`
+}
+
+// IncidentGraph is a lightweight star-plus-peer relation graph for analyst review.
+type IncidentGraph struct {
+	Nodes []IncidentGraphNode `json:"nodes"`
+	Edges []IncidentGraphEdge `json:"edges"`
+}
+
+// IncidentGeoSummary aggregates geography across incident members.
+type IncidentGeoSummary struct {
+	CountryCodes []string `json:"country_codes"`
+	Countries    []string `json:"countries,omitempty"`
 }
 
 type SignalLane string

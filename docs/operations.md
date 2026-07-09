@@ -31,8 +31,9 @@ The collector can also run in parallel worker roles using role filters:
 - `api`: API lane only (non-fast + non-browser)
 - `api-ucdp`, `api-acled`, `api-gdelt`: one collector per API family
 
-Caddy serves the SPA, exposes `/alerts.json`, `/alerts-filtered.json`,
-`/alerts-state.json`, and `/source-health.json`, and requests TLS when
+Caddy serves the SPA, exposes `/alerts.json`, `/incidents.json`,
+`/alerts-filtered.json`, `/alerts-state.json`, and `/source-health.json`, and
+requests TLS when
 `KAFSIEM_SITE_ADDRESS` is a real hostname. Architecture detail:
 [architecture.md](architecture.md).
 
@@ -305,4 +306,7 @@ Alert lifecycle notes:
 
 - Alerts are no longer dropped on first miss.
 - `alerts.json` keeps currently visible lifecycle states from reconciliation.
+- `incidents.json` indexes corroborated attack clusters (`attack_type`,
+  `link_reasons`, member alert IDs). See
+  [architecture.md#osint-attack-relations](architecture.md#osint-attack-relations).
 - Long-tail history remains in `alerts-state.json`, including archived records until archive horizon expiry.

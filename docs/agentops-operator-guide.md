@@ -160,21 +160,15 @@ exercise the same queue, ontology, graph, map, provenance, and Fusion-context
 surfaces without requiring Kafka or SQLite:
 
 ```bash
-npm run demo:ontology
-npm run demo:fusion
+make demo-osint      # public OSINT relations console (fixtures)
+make demo-ontology   # Operations ontology desk
+make demo-fusion     # Fusion desk
 ```
 
-The demo URLs are `/?demo=ontology` for Operations and `/?demo=fusion` for
-Fusion. They do not restore the discontinued legacy dashboard.
+These map to `/?demo=osint`, `/?demo=ontology`, and `/?demo=fusion`. They do
+not restore the discontinued legacy dashboard.
 
-For live local development against collector and API output:
-
-```bash
-npm run fetch:alerts:watch
-npm run dev
-```
-
-For the full Docker development stack:
+For the full Docker development stack (live collector + API + UI):
 
 ```bash
 make dev-start
@@ -259,3 +253,14 @@ exists on:
 - product
 - CVE
 - time-window proximity
+
+When the OSINT collector has built **incident clusters**, Fusion also matches
+Kafka flow indicators against cluster metadata:
+
+- `incident-cve:{CVE}` — flow vulnerability fields match `incident.shared_cves`
+- `incident-entity:{actor}` — flow actor fields match `incident.shared_entities`
+- `incident:{incident_id}` — cluster-level corroboration reason
+
+Incident-backed matches are ranked above single-alert matches in the Fusion
+Context block. Implementation: `src/agentops/lib/hybrid.ts`. Cluster build
+pipeline: [architecture.md#osint-attack-relations](architecture.md#osint-attack-relations).

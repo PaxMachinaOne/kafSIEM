@@ -4738,38 +4738,44 @@
     "max_items": 15
   },
   {
-    "type": "rss",
+    "type": "ofac-sdn-xml",
     "source": {
       "source_id": "ofac-sdn",
-      "authority_name": "US Treasury OFAC Sanctions",
+      "authority_name": "US Treasury OFAC SDN List",
       "country": "United States",
       "country_code": "US",
       "region": "North America",
       "authority_type": "national_security",
       "base_url": "https://www.treasury.gov"
     },
-    "feed_url": "https://ofac.treasury.gov/system/files/126/sdn.xml",
-    "category": "fraud_alert",
+    "feed_url": "https://www.treasury.gov/ofac/downloads/sdn.xml",
+    "category": "terrorism_tip",
     "region_tag": "US",
     "lat": 38.89,
-    "lng": -77.03
+    "lng": -77.03,
+    "max_items": 50
   },
   {
-    "type": "rss",
+    "type": "opensanctions-json",
     "source": {
-      "source_id": "ofac-updates",
-      "authority_name": "OFAC Recent Actions",
-      "country": "United States",
-      "country_code": "US",
-      "region": "North America",
-      "authority_type": "national_security",
-      "base_url": "https://ofac.treasury.gov"
+      "source_id": "opensanctions",
+      "authority_name": "OpenSanctions",
+      "country": "Global",
+      "country_code": "INT",
+      "region": "International",
+      "authority_type": "public_safety_program",
+      "base_url": "https://www.opensanctions.org"
     },
-    "feed_url": "https://ofac.treasury.gov/recent-actions/rss.xml",
-    "category": "fraud_alert",
-    "region_tag": "US",
-    "lat": 38.89,
-    "lng": -77.03
+    "feed_url": "https://data.opensanctions.org/datasets/latest/sanctions/index.json",
+    "category": "terrorism_tip",
+    "region_tag": "INT",
+    "lat": 52.52,
+    "lng": 13.41,
+    "max_items": 50,
+    "reporting": {
+      "label": "OpenSanctions Search",
+      "url": "https://www.opensanctions.org/"
+    }
   },
   {
     "type": "rss",
@@ -4789,7 +4795,7 @@
     "lng": 4.35
   },
   {
-    "type": "rss",
+    "type": "un-sanctions-xml",
     "source": {
       "source_id": "un-sanctions",
       "authority_name": "UN Security Council Sanctions",
@@ -4800,27 +4806,11 @@
       "base_url": "https://www.un.org/securitycouncil/sanctions"
     },
     "feed_url": "https://scsanctions.un.org/resources/xml/en/consolidated.xml",
-    "category": "fraud_alert",
+    "category": "terrorism_tip",
     "region_tag": "INT",
     "lat": 40.75,
-    "lng": -73.97
-  },
-  {
-    "type": "rss",
-    "source": {
-      "source_id": "opensanctions",
-      "authority_name": "OpenSanctions",
-      "country": "Global",
-      "country_code": "INT",
-      "region": "International",
-      "authority_type": "public_safety_program",
-      "base_url": "https://www.opensanctions.org"
-    },
-    "feed_url": "https://www.opensanctions.org/rss/index.xml",
-    "category": "fraud_alert",
-    "region_tag": "INT",
-    "lat": 52.52,
-    "lng": 13.41
+    "lng": -73.97,
+    "max_items": 50
   },
   {
     "type": "rss",
@@ -5373,6 +5363,138 @@
     "max_items": 30
   },
   {
+    "type": "nvd-json",
+    "source": {
+      "source_id": "nvd-recent",
+      "authority_name": "NIST National Vulnerability Database",
+      "country": "United States",
+      "country_code": "US",
+      "region": "North America",
+      "authority_type": "cert",
+      "base_url": "https://nvd.nist.gov"
+    },
+    "feed_url": "https://services.nvd.nist.gov/rest/json/cves/2.0",
+    "category": "cyber_advisory",
+    "region_tag": "INT",
+    "lat": 39.14,
+    "lng": -77.22,
+    "max_items": 40,
+    "reporting": {
+      "label": "NVD Vulnerability Search",
+      "url": "https://nvd.nist.gov/vuln/search"
+    }
+  },
+  {
+    "type": "epss-csv",
+    "source": {
+      "source_id": "first-epss",
+      "authority_name": "FIRST EPSS",
+      "country": "United States",
+      "country_code": "US",
+      "region": "North America",
+      "authority_type": "public_safety_program",
+      "base_url": "https://www.first.org"
+    },
+    "feed_url": "https://epss.empiricalsecurity.com/epss_scores-current.csv.gz",
+    "category": "cyber_advisory",
+    "region_tag": "INT",
+    "lat": 38.88,
+    "lng": -77.02,
+    "max_items": 30,
+    "reporting": {
+      "label": "EPSS Scores",
+      "url": "https://www.first.org/epss"
+    }
+  },
+  {
+    "type": "urlhaus-csv",
+    "source": {
+      "source_id": "urlhaus-recent",
+      "authority_name": "URLhaus Malware URLs",
+      "country": "Switzerland",
+      "country_code": "CH",
+      "region": "International",
+      "authority_type": "public_safety_program",
+      "base_url": "https://urlhaus.abuse.ch"
+    },
+    "feed_url": "https://urlhaus.abuse.ch/downloads/csv_recent/",
+    "category": "cyber_advisory",
+    "region_tag": "INT",
+    "lat": 46.95,
+    "lng": 7.45,
+    "max_items": 30,
+    "reporting": {
+      "label": "Report to abuse.ch",
+      "url": "https://urlhaus.abuse.ch/report/"
+    }
+  },
+  {
+    "type": "rss",
+    "source": {
+      "source_id": "doj",
+      "authority_name": "U.S. Department of Justice",
+      "country": "United States",
+      "country_code": "US",
+      "region": "North America",
+      "authority_type": "regulatory",
+      "base_url": "https://www.justice.gov"
+    },
+    "feed_url": "https://www.justice.gov/feeds/justice-news.xml",
+    "category": "public_safety",
+    "region_tag": "US",
+    "lat": 38.8951,
+    "lng": -77.0364,
+    "max_items": 20,
+    "reporting": {
+      "label": "Contact DOJ",
+      "url": "https://www.justice.gov/doj/webform/your-message-department-justice"
+    }
+  },
+  {
+    "type": "rss",
+    "source": {
+      "source_id": "bka",
+      "authority_name": "Bundeskriminalamt",
+      "country": "Germany",
+      "country_code": "DE",
+      "region": "Europe",
+      "authority_type": "police",
+      "base_url": "https://www.bka.de"
+    },
+    "feed_url": "https://www.bka.de/SiteGlobals/Functions/RSSFeed/RSSGenerator.xml",
+    "category": "wanted_suspect",
+    "region_tag": "DE",
+    "lat": 50.1109,
+    "lng": 8.6821,
+    "max_items": 20,
+    "reporting": {
+      "label": "Contact BKA",
+      "url": "https://www.bka.de"
+    }
+  },
+  {
+    "type": "rss",
+    "source": {
+      "source_id": "bnd",
+      "authority_name": "Federal Intelligence Service (BND)",
+      "country": "Germany",
+      "country_code": "DE",
+      "region": "Europe",
+      "authority_type": "intelligence",
+      "base_url": "https://www.bnd.bund.de"
+    },
+    "feed_url": "https://www.bnd.bund.de/EN/_rssfeed/rss_node.html",
+    "category": "public_safety",
+    "region_tag": "DE",
+    "lat": 52.52,
+    "lng": 13.405,
+    "max_items": 15,
+    "reporting": {
+      "label": "Contact BND",
+      "url": "https://www.bnd.bund.de"
+    }
+  },
+  {
     "type": "gdelt-json",
     "source": {
       "source_id": "gdelt-conflict",
@@ -5758,6 +5880,40 @@
     ]
   },
   {
+    "type": "imb-piracy-html",
+    "fetch_mode": "browser",
+    "source": {
+      "source_id": "imb-piracy-warnings",
+      "authority_name": "IMB Piracy Reporting Centre",
+      "country": "United Kingdom",
+      "country_code": "GB",
+      "region": "International",
+      "authority_type": "public_safety_program",
+      "base_url": "https://icc-ccs.org"
+    },
+    "feed_url": "https://icc-ccs.org/piracy-and-armed-robbery-prone-areas-and-warnings/",
+    "category": "maritime_security",
+    "region_tag": "INT",
+    "lat": 51.51,
+    "lng": -0.12,
+    "max_items": 20,
+    "include_keywords": [
+      "piracy",
+      "hijack",
+      "kidnap",
+      "houthi",
+      "vigilant",
+      "advised",
+      "warning",
+      "robbery",
+      "attack"
+    ],
+    "reporting": {
+      "label": "IMB Piracy Reporting Centre",
+      "url": "https://icc-ccs.org/imb-piracy-reporting-centre-2/"
+    }
+  },
+  {
     "type": "rss",
     "source": {
       "source_id": "hellenicshipping-piracy",
@@ -5776,6 +5932,8 @@
   },
   {
     "type": "rss",
+    "promotion_status": "rejected",
+    "rejection_reason": "RSS feed permanently 404; gcaptain and hellenicshipping-piracy cover maritime security",
     "source": {
       "source_id": "maritime-executive",
       "authority_name": "Maritime Executive",

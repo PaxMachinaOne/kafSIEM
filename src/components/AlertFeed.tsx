@@ -24,7 +24,8 @@ import { useConflictStats } from "@/hooks/useConflictStats";
 import type { ZoneBriefingEvent } from "@/types/zone-briefing";
 import type { ConflictLens } from "@/lib/conflict-lenses";
 import type { ConflictCountryFocus } from "@/types/current-conflicts";
-import { Clock, Building2, ChevronDown, Globe } from "lucide-react";
+import { Clock, Building2, ChevronDown, Globe, GitBranch } from "lucide-react";
+import { isIncidentMember, isIncidentPrimary } from "@/lib/incident-links";
 
 const LIVE_WINDOW_MS = 48 * 60 * 60 * 1000; // 48 hours
 const PREFERRED_REGION_ORDER = ["Europe", "Middle East", "Africa", "North America", "Asia-Pacific"] as const;
@@ -48,6 +49,7 @@ interface Props {
   /** When set, switches the right panel to this view mode. Bump requestedViewModeKey to re-trigger the same mode. */
   requestedViewMode?: "now" | "history" | "now_history" | "briefing" | null;
   requestedViewModeKey?: number;
+  includeInfoInTimeline?: boolean;
 }
 
 export function AlertFeed({
@@ -63,6 +65,7 @@ export function AlertFeed({
   onVisibleAlertIdsChange,
   requestedViewMode,
   requestedViewModeKey,
+  includeInfoInTimeline = false,
 }: Props) {
   const [viewMode, setViewMode] = useState<"now" | "history" | "now_history" | "briefing">("now");
 
@@ -267,8 +270,11 @@ export function AlertFeed({
 
   // Separate briefing lane from actionable lanes.
   const actionableAlerts = useMemo(
-    () => facetFiltered.filter((a) => (a.signal_lane ?? (a.severity === "info" ? "info" : "intel")) !== "info"),
-    [facetFiltered],
+    () =>
+      includeInfoInTimeline
+        ? facetFiltered
+        : facetFiltered.filter((a) => (a.signal_lane ?? (a.severity === "info" ? "info" : "intel")) !== "info"),
+    [facetFiltered, includeInfoInTimeline],
   );
 
   const briefingAlerts = useMemo(
@@ -298,13 +304,13 @@ export function AlertFeed({
     () =>
       historicalFacetFiltered
         .filter((a) => a.status !== "filtered")
-        .filter((a) => (a.signal_lane ?? (a.severity === "info" ? "info" : "intel")) !== "info")
+        .filter((a) => includeInfoInTimeline || (a.signal_lane ?? (a.severity === "info" ? "info" : "intel")) !== "info")
         .filter((a) => {
           const t = new Date(a.last_seen).getTime();
           return t < liveCutoff;
         })
         .sort((a, b) => new Date(b.last_seen).getTime() - new Date(a.last_seen).getTime()),
-    [historicalFacetFiltered, liveCutoff],
+    [historicalFacetFiltered, includeInfoInTimeline, liveCutoff],
   );
 
   const nowAndHistoryAlerts = useMemo(() => {
@@ -488,6 +494,14 @@ export function AlertFeed({
             {typeof alert.triage?.relevance_score === "number" && (
               <span className="inline-flex items-center px-1.5 py-0.5 text-2xs uppercase tracking-wider rounded border border-siem-border text-siem-muted bg-white/5">
                 Rel {Math.round(alert.triage.relevance_score * 100)}
+              </span>
+            )}
+            {isIncidentMember(alert) && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-2xs uppercase tracking-wider rounded border border-siem-accent/35 text-siem-accent bg-siem-accent/12">
+                <GitBranch size={10} />
+                {isIncidentPrimary(alert)
+                  ? `${alert.incident?.member_count ?? 0} linked`
+                  : "corroborates"}
               </span>
             )}
           </div>

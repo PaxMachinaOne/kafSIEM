@@ -1,13 +1,15 @@
 import { appURL } from "@/lib/app-url";
 import type { AgentOpsMode } from "@/agentops/types";
 
-export type AgentOpsDemoMode = "ontology" | "fusion";
+export type AgentOpsDemoMode = "osint" | "ontology" | "fusion";
 export type AgentOpsDemoScenario = "all" | "drones" | "scada";
 
 export function currentDemoMode(): AgentOpsDemoMode | null {
   if (typeof window === "undefined") return null;
   const value = new URLSearchParams(window.location.search).get("demo")?.trim().toLowerCase();
   switch (value) {
+    case "osint":
+      return "osint";
     case "agentops":
     case "ontology":
       return "ontology";
@@ -25,6 +27,7 @@ export function isAgentOpsDemo(): boolean {
 
 export function demoShellMode(): AgentOpsMode | null {
   const mode = currentDemoMode();
+  if (mode === "osint") return "OSINT";
   if (mode === "fusion") return "HYBRID";
   if (mode === "ontology") return "AGENTOPS";
   return null;
@@ -32,6 +35,7 @@ export function demoShellMode(): AgentOpsMode | null {
 
 export function demoLabel(): string {
   const mode = currentDemoMode();
+  if (mode === "osint") return "OSINT demo";
   if (mode === "fusion") return "Fusion demo";
   if (mode === "ontology") return "Ontology demo";
   return "";
@@ -53,6 +57,16 @@ export function demoScenarioHref(scenario: AgentOpsDemoScenario): string {
 
 export function alertsURL(): string {
   return isAgentOpsDemo() ? appURL("demo/alerts.json") : appURL("alerts.json");
+}
+
+export function incidentsURL(): string {
+  return isAgentOpsDemo() ? appURL("demo/incidents.json") : appURL("api/osint/incidents");
+}
+
+export function incidentDetailURL(incidentId: string): string {
+  return isAgentOpsDemo()
+    ? appURL(`demo/incidents/${incidentId}.json`)
+    : appURL(`api/osint/incidents/${encodeURIComponent(incidentId)}`);
 }
 
 export function agentOpsGroupsURL(): string {

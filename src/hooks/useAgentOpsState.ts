@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { demoShellMode, isAgentOpsDemo } from "@/agentops/lib/demo";
-import { loadPersistedShell, normalizeState, persistShell } from "@/agentops/lib/state";
+import { loadPersistedShell, normalizeState, persistShell, profileForMode } from "@/agentops/lib/state";
 import type { AgentOpsState } from "@/agentops/types";
 
 function fallbackState(): AgentOpsState {
@@ -10,9 +10,17 @@ function fallbackState(): AgentOpsState {
       generated_at: new Date().toISOString(),
       enabled: true,
       ui_mode: demoMode,
-      profile: demoMode === "HYBRID" ? "hybrid-ops" : "agentops-default",
-      group_name: "kafsiem-ontology-demo",
-      topics: ["ops.drones.telemetry.v1", "ops.drones.ontology.edges.v1", "ot.scada.modbus.readings.v1", "ot.scada.ontology.edges.v1"],
+      profile: profileForMode(demoMode),
+      group_name: demoMode === "OSINT" ? "kafsiem-osint-demo" : "kafsiem-ontology-demo",
+      topics:
+        demoMode === "OSINT"
+          ? []
+          : [
+              "ops.drones.telemetry.v1",
+              "ops.drones.ontology.edges.v1",
+              "ot.scada.modbus.readings.v1",
+              "ot.scada.ontology.edges.v1",
+            ],
     });
   }
   return normalizeState(loadPersistedShell());

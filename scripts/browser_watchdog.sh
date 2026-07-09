@@ -40,6 +40,11 @@ if [[ "$health_status" == "unhealthy" || "$health_status" == "starting" || "$hea
   exit 0
 fi
 
+if ! docker exec "$BROWSER_CONTAINER" curl -fsS http://127.0.0.1:3000/json/version >/dev/null 2>&1; then
+  restart_browser "browser-port-unreachable"
+  exit 0
+fi
+
 fallback_count="$(
   docker logs --since "${WINDOW_MINUTES}m" "$COLLECTOR_CONTAINER" 2>&1 \
     | grep -c "$FAILURE_PATTERN" || true

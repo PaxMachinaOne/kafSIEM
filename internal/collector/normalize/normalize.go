@@ -2048,14 +2048,13 @@ func Deduplicate(alerts []model.Alert) ([]model.Alert, model.DuplicateAudit) {
 	sort.Slice(deduped, func(i, j int) bool { return deduped[i].Title < deduped[j].Title })
 	kept, suppressed := collapseVariants(deduped)
 
-	// Stage 4: cross-source fingerprint dedup — collapse alerts from different
-	// sources that cover the same event (entity-aware Jaccard similarity).
-	kept, crossSourceSuppressed := crossSourceDedup(kept)
+	// Cross-source fingerprint dedup runs in FinalizeActiveAlerts after incident
+	// clusters are built so corroborating alerts survive long enough to link.
 
 	duplicates := summarizeTitleDuplicates(kept)
 	return kept, model.DuplicateAudit{
 		SuppressedVariantDuplicates:     len(suppressed),
-		SuppressedCrossSourceDuplicates: crossSourceSuppressed,
+		SuppressedCrossSourceDuplicates: 0,
 		RepeatedTitleGroupsInActive:     len(duplicates),
 		RepeatedTitleSamples:            duplicates,
 	}

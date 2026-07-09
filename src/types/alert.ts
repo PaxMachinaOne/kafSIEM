@@ -73,6 +73,22 @@ export interface Alert {
   freshness_hours: number;
   reporting?: ReportingInfo;
   triage?: AlertTriage;
+  incident?: IncidentLink;
+}
+
+export interface IncidentLink {
+  incident_id: string;
+  member_count: number;
+  source_count?: number;
+  primary_alert_id?: string;
+  role?: "primary" | "member";
+  related_alert_ids?: string[];
+  link_reasons?: string[];
+  shared_cves?: string[];
+  shared_entities?: string[];
+  shared_malware?: string[];
+  shared_sectors?: string[];
+  shared_countries?: string[];
 }
 
 export interface ReportingInfo {

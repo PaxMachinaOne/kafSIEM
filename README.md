@@ -37,14 +37,15 @@ No Kafka, API keys, or Docker required.
 
 ```bash
 git clone https://github.com/scalytics/kafSIEM.git && cd kafSIEM
-npm install
-npm run demo:ontology:drones   # unmanned systems ontology desk
-npm run demo:ontology:scada    # SCADA / OT ontology desk
-npm run demo:fusion            # operations plus OSINT correlation
+make help          # list all targets
+make demo-osint    # public OSINT relations demo (fixtures, no Docker)
+make demo-ontology # Operations ontology desk
+make demo-fusion   # Fusion desk
 ```
 
-Opens the Operations or Fusion desk with typed mock API data. OSINT mode is
-unchanged.
+`make demo-osint` opens the OSINT console with bundled alert and incident
+fixtures — cyber, malware, ICS/energy, and terror clusters in the Relations
+panel. No Kafka or Docker required.
 
 ## What you get
 
@@ -96,7 +97,7 @@ read-only analyst resources and enqueues replay requests. See
 
 | Product name | `UI_MODE` | Purpose |
 |--------------|-----------|---------|
-| OSINT | `OSINT` | Globe-first external intelligence and alert feeds |
+| OSINT | `OSINT` | Globe-first intelligence, alert feeds, attack-relation clusters |
 | Operations | `AGENTOPS` | Kafka agent flow tracking and ontology desk |
 | Fusion | `HYBRID` | Operations plus heuristic OSINT correlation |
 
@@ -181,13 +182,18 @@ Node `25.8.1` and npm `11.11.0` are pinned in `package.json`, `.nvmrc`, and
 `.node-version`. The Go collector powers scheduled feed refresh, Docker
 runtime, and local collection commands.
 
-OSINT-only local dev without Docker:
+Local workflows (`make help` for the full list):
 
-```bash
-npm install
-npm run fetch:alerts:watch
-npm run dev
-```
+| Goal | Command |
+|------|---------|
+| OSINT relations demo (fixtures) | `make demo-osint` |
+| Full local stack (live collector + API) | `make dev-start` → `http://localhost:8080` |
+| Go collector tests | `make go-test` |
+| Full CI gate | `make ci` or `make commit-check` |
+
+Browse corroborated clusters: header **Relations** → filter by attack type
+(cyber, terror, maritime, conflict). See
+[docs/userguide.md](docs/userguide.md#attack-relations-clusters).
 
 ## License
 
