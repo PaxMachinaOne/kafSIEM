@@ -459,9 +459,8 @@ export function GlobeView({
     const seenSources = new Set<string>();
     for (const alert of focusAlerts) {
       const sourceCode = (alert.source.country_code || "").toUpperCase();
-      const eventCode = (alert.event_country_code || "").toUpperCase();
       const centroid = countryCentroid(sourceCode);
-      if (!centroid || sourceCode === eventCode) continue;
+      if (!centroid) continue;
       if (!(alert.lat === 0 && alert.lng === 0)) {
         L.polyline([[alert.lat, alert.lng], centroid], {
           color: "#94a3b8",
