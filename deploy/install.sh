@@ -27,11 +27,11 @@ fatal() { echo "[kafsiem-install][error] $*" >&2; exit 1; }
 
 read_prompt() {
   local prompt_text="$1"
-  local out
+  local out=""
   if [[ -t 0 ]]; then
-    read -r -p "$prompt_text" out
-  elif [[ -r /dev/tty ]]; then
-    read -r -p "$prompt_text" out < /dev/tty
+    read -r -p "$prompt_text" out || out=""
+  elif [[ -r /dev/tty ]] && read -r -p "$prompt_text" out < /dev/tty; then
+    :
   else
     out=""
   fi
