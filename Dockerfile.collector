@@ -19,13 +19,13 @@ COPY public ./public
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -o /out/kafsiem-collector ./cmd/kafsiem-collector
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -o /out/kafsiem-api ./cmd/kafsiem-api
 
-FROM alpine:3.20 AS geonames
+FROM alpine:3.24 AS geonames
 RUN apk add --no-cache curl unzip
 RUN curl -sL https://download.geonames.org/export/dump/cities500.zip -o /tmp/cities500.zip \
     && unzip /tmp/cities500.zip -d /tmp \
     && rm /tmp/cities500.zip
 
-FROM alpine:3.20 AS runtime
+FROM alpine:3.24 AS runtime
 
 RUN apk add --no-cache ca-certificates
 
@@ -41,7 +41,7 @@ RUN chmod +x /usr/local/bin/collector-entrypoint.sh
 
 ENTRYPOINT ["/usr/local/bin/collector-entrypoint.sh"]
 
-FROM alpine:3.20 AS api-runtime
+FROM alpine:3.24 AS api-runtime
 
 RUN apk add --no-cache ca-certificates
 
