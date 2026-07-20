@@ -19,31 +19,38 @@ If `SEARCH_DISCOVERY_ENABLED=true`, discovery also uses the configured OpenAI-co
 
 ## LLM Endpoint Contract
 
-The source vetter uses an OpenAI-compatible `chat/completions` endpoint. It supports:
+Every OSINT LLM workload uses the same OpenAI-compatible `chat/completions`
+contract. There are no vendor SDKs or provider-specific routing branches. This
+works directly with compatible services such as:
 
 - OpenAI
 - Mistral
 - xAI
 - Scalytics Copilot
-- Claude-compatible gateways
-- Gemini-compatible gateways
 - vLLM
 - Ollama
 
-The implementation is endpoint-driven, not vendor-SDK driven. If a provider does not expose a native OpenAI-compatible endpoint, place a compatible gateway in front of it and point `SOURCE_VETTING_BASE_URL` at that gateway.
+Point `LLM_BASE_URL` at the provider's compatibility endpoint or at a gateway
+and configure the model IDs it exposes. Anthropic and Gemini currently provide
+compatibility endpoints, but both describe them as limited compared with their
+native APIs. `LLM_PROVIDER` is an informational label; it never changes request
+behavior.
 
-## Search-Capable Models
+## Search Discovery and Token Economics
 
-Search-capable models can be used as discovery accelerators instead of scraping public search engines directly.
+The discovery pipeline uses browser-backed DuckDuckGo search first. The LLM is
+only asked about the remaining uncovered targets, with both target count and
+URLs per target capped. Returned URLs still enter the normal probe, hygiene,
+and vetting pipeline.
 
-Examples:
+This saves more tokens than asking a model to research the open web on every
+cycle: deterministic search retrieves URLs, kafSIEM fetches and deduplicates
+the source data, and the model receives only compact candidates or evidence.
+The generic `chat/completions` contract does not enable vendor-specific web
+tools. A provider may ground a model internally, but kafSIEM never assumes it
+did so.
 
-- xAI `grok-4-1-fast`
-- Gemini fast variants
-- Claude Haiku variants
-- Scalytics Copilot models with search enabled
-
-Recommended use:
+Recommended use of the LLM fallback:
 
 - generate a small set of candidate URLs for a specific agency, country, or sector
 - pass those URLs into the candidate queue
@@ -78,82 +85,168 @@ SEARCH_DISCOVERY_MAX_TARGETS=4
 SEARCH_DISCOVERY_MAX_URLS_PER_TARGET=3
 HTTP_TIMEOUT_MS=60000
 SOURCE_VETTING_ENABLED=true
-SOURCE_VETTING_PROVIDER=xai
-SOURCE_VETTING_BASE_URL=https://api.x.ai/v1
-SOURCE_VETTING_API_KEY=
-SOURCE_VETTING_MODEL=grok-4-1-fast
+LLM_PROVIDER=xai
+LLM_BASE_URL=https://api.x.ai/v1
+LLM_API_KEY=
+LLM_MODEL=grok-4.3
+LLM_MODEL_FALLBACKS=grok-4.3-latest,grok-latest
 SOURCE_VETTING_TEMPERATURE=0
 SOURCE_VETTING_MAX_SAMPLE_ITEMS=6
 ALERT_LLM_ENABLED=true
-ALERT_LLM_MODEL=grok-4-1-fast
+ALERT_LLM_MODEL=grok-4.3
+ALERT_LLM_MODEL_FALLBACKS=grok-4.3-latest,grok-latest
 ALERT_LLM_MAX_ITEMS_PER_SOURCE=4
+LLM_MODEL_DISCOVERY_ENABLED=true
+LLM_MODEL_REFRESH_HOURS=168
+LLM_MAX_OUTPUT_TOKENS=1200
 ```
 
 Put the real API key only in your local `.env`. Do not commit it.
+
+During interactive install or update, the setup script offers to validate this
+configuration immediately. It calls `GET /models`, shows when the preferred
+model is absent, lets the operator replace it with a returned model ID, and
+sends one minimal completion capped at eight output tokens. The check is
+non-fatal because some compatible gateways omit `/models`.
+
+Unattended updates never make the billable completion request by default. Set
+`LLM_SETUP_PROBE=true` to opt in or `LLM_SETUP_PROBE=false` to suppress the
+interactive check explicitly.
+
+### Model discovery and failover
+
+The LLM runtime is OpenAI-compatible and shared by source vetting, search
+discovery, alert classification, conflict briefs, and terror analysis. At
+startup it attempts `GET /models` using the configured base URL and bearer
+token. Successful inventories are cached for seven days by default.
+
+The configured model wins when available, followed by the workload's ordered
+fallback list. If neither is present, kafSIEM conservatively selects a text/chat
+model and avoids embedding, image, audio, moderation, reranking, realtime, and
+code-specialized models. A completion-time model 404 forces an inventory
+refresh and one retry with a newly resolved model. Failure or absence of the
+models endpoint is non-fatal for compatible gateways that only implement chat
+completions.
+
+When inventory access is forbidden, a model 404 advances through the explicit
+fallback list without requiring `/models`. kafSIEM does not ship vendor model
+aliases because those become stale. Set `LLM_MODEL_FALLBACKS` and, when needed,
+`ALERT_LLM_MODEL_FALLBACKS` explicitly. The provider label never changes the
+endpoint protocol.
+
+The canonical shared settings are `LLM_PROVIDER`, `LLM_BASE_URL`, `LLM_API_KEY`,
+`LLM_MODEL`, and `LLM_MODEL_FALLBACKS`. Existing deployments using the legacy
+`SOURCE_VETTING_PROVIDER`, `SOURCE_VETTING_BASE_URL`, `SOURCE_VETTING_API_KEY`,
+`SOURCE_VETTING_MODEL`, and `SOURCE_VETTING_MODEL_FALLBACKS` names continue to
+work. During update, the installer copies each configured legacy value into its
+canonical field and reports the migrated field name without displaying its
+value. Existing canonical values always win, and legacy fields are retained for
+rollback compatibility.
+
+`GET /api/health` reports configured and resolved models, inventory timestamps,
+last errors, token usage, and provider-reported cost when available.
+
+### Evidence-grounded terror analysis
+
+Terror analysis does not ask the model to invent active regions or coordinates.
+The collector extracts terror signals from its web, RSS, GDELT, and official
+source results, collapses incident and duplicate-title results, ranks them by
+severity, recency, and incident source count, and sends only compact evidence
+lines. Full pages and alert histories are excluded.
+
+The default prompt budget is capped at 24 evidence items, four per country, and
+the eight highest-ranked countries per request.
+New critical, alarm-lane, or multi-source evidence can trigger an early refresh.
+Otherwise analysis runs daily when evidence changes and reuses unchanged output
+for up to 72 hours. Returned country assessments must cite valid alert IDs;
+geography remains deterministic.
 
 ## Example Endpoints
 
 OpenAI:
 
 ```dotenv
-SOURCE_VETTING_PROVIDER=openai
-SOURCE_VETTING_BASE_URL=https://api.openai.com/v1
+LLM_PROVIDER=openai
+LLM_BASE_URL=https://api.openai.com/v1
+LLM_API_KEY=your-openai-key
+LLM_MODEL=your-available-model-id
 ```
 
 Mistral:
 
 ```dotenv
-SOURCE_VETTING_PROVIDER=mistral
-SOURCE_VETTING_BASE_URL=https://api.mistral.ai/v1
+LLM_PROVIDER=mistral
+LLM_BASE_URL=https://api.mistral.ai/v1
+LLM_API_KEY=your-mistral-key
+LLM_MODEL=your-available-model-id
 ```
 
 xAI:
 
 ```dotenv
-SOURCE_VETTING_PROVIDER=xai
-SOURCE_VETTING_BASE_URL=https://api.x.ai/v1
-SOURCE_VETTING_MODEL=grok-4-1-fast
-ALERT_LLM_MODEL=grok-4-1-fast
+LLM_PROVIDER=xai
+LLM_BASE_URL=https://api.x.ai/v1
+LLM_API_KEY=your-xai-key
+LLM_MODEL=grok-4.3
+LLM_MODEL_FALLBACKS=grok-4.3-latest,grok-latest
+ALERT_LLM_MODEL=grok-4.3
 ```
 
 Scalytics Copilot:
 
 ```dotenv
-SOURCE_VETTING_PROVIDER=scalytics-copilot
-SOURCE_VETTING_BASE_URL=https://YOUR_SCALYTICS_COPILOT_URL/v1
-SOURCE_VETTING_MODEL=your-copilot-model
+LLM_PROVIDER=scalytics-copilot
+LLM_BASE_URL=https://YOUR_SCALYTICS_COPILOT_URL/v1
+LLM_API_KEY=your-copilot-key
+LLM_MODEL=your-copilot-model
 ALERT_LLM_MODEL=your-copilot-model
 ```
 
 vLLM:
 
 ```dotenv
-SOURCE_VETTING_PROVIDER=vllm
-SOURCE_VETTING_BASE_URL=http://vllm-host:8000/v1
-SOURCE_VETTING_API_KEY=dummy
+LLM_PROVIDER=vllm
+LLM_BASE_URL=http://vllm-host:8000/v1
+LLM_API_KEY=dummy
+LLM_MODEL=your-served-model-id
 ```
 
 Ollama:
 
 ```dotenv
-SOURCE_VETTING_PROVIDER=ollama
-SOURCE_VETTING_BASE_URL=http://localhost:11434/v1
-SOURCE_VETTING_API_KEY=dummy
+LLM_PROVIDER=ollama
+LLM_BASE_URL=http://localhost:11434/v1
+LLM_API_KEY=dummy
+LLM_MODEL=your-local-model-id
 ```
 
-Claude-compatible gateway:
+Anthropic OpenAI compatibility layer:
 
 ```dotenv
-SOURCE_VETTING_PROVIDER=claude
-SOURCE_VETTING_BASE_URL=https://your-gateway.example/v1
+LLM_PROVIDER=anthropic
+LLM_BASE_URL=https://api.anthropic.com/v1
+LLM_API_KEY=your-anthropic-key
+LLM_MODEL=your-available-claude-model-id
+LLM_MODEL_FALLBACKS=another-available-claude-model-id
 ```
 
-Gemini-compatible gateway:
+Anthropic recommends this compatibility layer for testing and comparison, not
+as the long-term production path to every Claude feature. For production use,
+either accept those compatibility limits or put a maintained OpenAI-compatible
+gateway in front of the native API.
+
+Gemini OpenAI compatibility layer:
 
 ```dotenv
-SOURCE_VETTING_PROVIDER=gemini
-SOURCE_VETTING_BASE_URL=https://your-gateway.example/v1
+LLM_PROVIDER=gemini
+LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
+LLM_API_KEY=your-gemini-key
+LLM_MODEL=your-available-gemini-model-id
+LLM_MODEL_FALLBACKS=another-available-gemini-model-id
 ```
+
+Gemini labels its OpenAI compatibility support beta. A gateway remains valid
+when you need a stable organization-wide contract or native-only features.
 
 ## CLI Usage
 
@@ -171,10 +264,10 @@ go run ./cmd/kafsiem-collector \
   --source-vetting \
   --source-vetting-provider xai \
   --source-vetting-base-url https://api.x.ai/v1 \
-  --source-vetting-api-key "$SOURCE_VETTING_API_KEY" \
-  --source-vetting-model grok-4-1-fast \
+  --source-vetting-api-key "$LLM_API_KEY" \
+  --source-vetting-model grok-4.3 \
   --alert-llm \
-  --alert-llm-model grok-4-1-fast
+  --alert-llm-model grok-4.3
 ```
 
 ## Promotion Policy
@@ -217,7 +310,7 @@ Example:
 
 ```dotenv
 ALERT_LLM_ENABLED=true
-ALERT_LLM_MODEL=grok-4-1-fast
+ALERT_LLM_MODEL=grok-4.3
 ALERT_LLM_MAX_ITEMS_PER_SOURCE=4
 ```
 
@@ -237,13 +330,13 @@ Equivalent xAI request shape:
 ```bash
 curl https://api.x.ai/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $SOURCE_VETTING_API_KEY" \
+  -H "Authorization: Bearer $LLM_API_KEY" \
   -d '{
     "messages": [
       {"role": "system", "content": "You are a test assistant."},
       {"role": "user", "content": "Testing. Just say hi and hello world and nothing else."}
     ],
-    "model": "grok-4-1-fast",
+    "model": "grok-4.3",
     "stream": false,
     "temperature": 0
   }'
@@ -254,7 +347,7 @@ Equivalent Scalytics Copilot request shape:
 ```bash
 curl https://YOUR_SCALYTICS_COPILOT_URL/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $SOURCE_VETTING_API_KEY" \
+  -H "Authorization: Bearer $LLM_API_KEY" \
   -d '{
     "messages": [
       {"role": "system", "content": "You are a test assistant."},

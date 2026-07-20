@@ -204,11 +204,24 @@ Set these in `.env` (the install/update script will prompt for them):
 
 ```dotenv
 SOURCE_VETTING_ENABLED=true
-SOURCE_VETTING_PROVIDER=xai
-SOURCE_VETTING_BASE_URL=https://api.x.ai/v1
-SOURCE_VETTING_API_KEY=your-key-here
-SOURCE_VETTING_MODEL=grok-4-1-fast
+LLM_PROVIDER=xai
+LLM_BASE_URL=https://api.x.ai/v1
+LLM_API_KEY=your-key-here
+LLM_MODEL=grok-4.3
+LLM_MODEL_FALLBACKS=grok-4.3-latest,grok-latest
 ```
+
+Interactive setup/update offers an immediate model test after these values are
+entered. It verifies the model inventory when available and performs one
+completion capped at eight output tokens. For unattended installation, use
+`LLM_SETUP_PROBE=true` to request the same check; it is skipped by default to
+avoid unexpected API usage.
+
+Updates also migrate configured legacy `SOURCE_VETTING_PROVIDER`,
+`SOURCE_VETTING_BASE_URL`, `SOURCE_VETTING_API_KEY`, `SOURCE_VETTING_MODEL`, and
+`SOURCE_VETTING_MODEL_FALLBACKS` values into their canonical `LLM_*` fields.
+Canonical values are never overwritten, and migration logs contain field names
+only—not credentials.
 
 ### Token cost
 

@@ -20,6 +20,12 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.StructuredDiscoveryIntervalHours != 168 {
 		t.Fatalf("unexpected structured discovery interval default %d", cfg.StructuredDiscoveryIntervalHours)
 	}
+	if !cfg.LLMModelDiscoveryEnabled || cfg.LLMModelRefreshHours != 168 || cfg.LLMMaxOutputTokens != 1200 {
+		t.Fatalf("unexpected LLM discovery defaults enabled=%v refresh=%d maxTokens=%d", cfg.LLMModelDiscoveryEnabled, cfg.LLMModelRefreshHours, cfg.LLMMaxOutputTokens)
+	}
+	if cfg.TerrorAnalysisRefreshHours != 24 || cfg.TerrorAnalysisUnchangedHours != 72 || cfg.TerrorAnalysisEvidenceHours != 72 || cfg.TerrorAnalysisMaxEvidence != 24 {
+		t.Fatalf("unexpected terror analysis defaults: %#v", cfg)
+	}
 	if !cfg.DiscoverSocialEnabled {
 		t.Fatal("expected social discovery to be enabled by default")
 	}
@@ -52,6 +58,53 @@ func TestDefaultConfig(t *testing.T) {
 	}
 	if cfg.UIMode != "OSINT" || cfg.Profile != "osint-default" {
 		t.Fatalf("unexpected UI defaults mode=%q profile=%q", cfg.UIMode, cfg.Profile)
+	}
+}
+
+func TestLLMRuntimeConfigFromEnv(t *testing.T) {
+	t.Setenv("SOURCE_VETTING_MODEL_FALLBACKS", "primary-fallback,secondary-fallback")
+	t.Setenv("ALERT_LLM_MODEL_FALLBACKS", "fast-a,fast-b")
+	t.Setenv("LLM_MODEL_DISCOVERY_ENABLED", "false")
+	t.Setenv("LLM_MODEL_REFRESH_HOURS", "24")
+	t.Setenv("LLM_MAX_OUTPUT_TOKENS", "640")
+	t.Setenv("TERROR_ANALYSIS_REFRESH_HOURS", "12")
+	t.Setenv("TERROR_ANALYSIS_UNCHANGED_HOURS", "48")
+	t.Setenv("TERROR_ANALYSIS_EVIDENCE_HOURS", "36")
+	t.Setenv("TERROR_ANALYSIS_MAX_EVIDENCE", "16")
+
+	cfg := FromEnv()
+	if cfg.LLMModelDiscoveryEnabled || cfg.LLMModelRefreshHours != 24 || cfg.LLMMaxOutputTokens != 640 {
+		t.Fatalf("unexpected LLM runtime env config: %#v", cfg)
+	}
+	if len(cfg.VettingModelFallbacks) != 2 || cfg.VettingModelFallbacks[1] != "secondary-fallback" {
+		t.Fatalf("unexpected vetting fallbacks %#v", cfg.VettingModelFallbacks)
+	}
+	if len(cfg.AlertLLMModelFallbacks) != 2 || cfg.AlertLLMModelFallbacks[0] != "fast-a" {
+		t.Fatalf("unexpected alert fallbacks %#v", cfg.AlertLLMModelFallbacks)
+	}
+	if cfg.TerrorAnalysisRefreshHours != 12 || cfg.TerrorAnalysisUnchangedHours != 48 || cfg.TerrorAnalysisEvidenceHours != 36 || cfg.TerrorAnalysisMaxEvidence != 16 {
+		t.Fatalf("unexpected terror analysis env config: %#v", cfg)
+	}
+}
+
+func TestCanonicalLLMEndpointConfigOverridesLegacyNames(t *testing.T) {
+	t.Setenv("SOURCE_VETTING_PROVIDER", "legacy-provider")
+	t.Setenv("SOURCE_VETTING_BASE_URL", "https://legacy.example/v1")
+	t.Setenv("SOURCE_VETTING_API_KEY", "legacy-key")
+	t.Setenv("SOURCE_VETTING_MODEL", "legacy-model")
+	t.Setenv("SOURCE_VETTING_MODEL_FALLBACKS", "legacy-fallback")
+	t.Setenv("LLM_PROVIDER", "compatible-gateway")
+	t.Setenv("LLM_BASE_URL", "https://gateway.example/v1")
+	t.Setenv("LLM_API_KEY", "gateway-key")
+	t.Setenv("LLM_MODEL", "preferred-model")
+	t.Setenv("LLM_MODEL_FALLBACKS", "fallback-a,fallback-b")
+
+	cfg := FromEnv()
+	if cfg.VettingProvider != "compatible-gateway" || cfg.VettingBaseURL != "https://gateway.example/v1" || cfg.VettingAPIKey != "gateway-key" || cfg.VettingModel != "preferred-model" {
+		t.Fatalf("canonical LLM endpoint settings did not win: %#v", cfg)
+	}
+	if len(cfg.VettingModelFallbacks) != 2 || cfg.VettingModelFallbacks[0] != "fallback-a" || cfg.VettingModelFallbacks[1] != "fallback-b" {
+		t.Fatalf("unexpected canonical model fallbacks: %#v", cfg.VettingModelFallbacks)
 	}
 }
 

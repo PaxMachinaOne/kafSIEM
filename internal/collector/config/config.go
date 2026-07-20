@@ -95,11 +95,16 @@ type Config struct {
 	VettingBaseURL                   string
 	VettingAPIKey                    string
 	VettingModel                     string
+	VettingModelFallbacks            []string
 	VettingTemperature               float64
 	VettingTimeoutMS                 int
 	VettingMaxSampleItems            int
+	LLMModelDiscoveryEnabled         bool
+	LLMModelRefreshHours             int
+	LLMMaxOutputTokens               int
 	AlertLLMEnabled                  bool
 	AlertLLMModel                    string
+	AlertLLMModelFallbacks           []string
 	AlertLLMMaxItemsPerSource        int
 	AlarmRelevanceThreshold          float64
 	CategoryDictionaryPath           string
@@ -134,6 +139,10 @@ type Config struct {
 	UCDPAPIVersion                   string
 	ZoneBriefingRefreshHours         int
 	ZoneBriefingACLEDEnabled         bool
+	TerrorAnalysisRefreshHours       int
+	TerrorAnalysisUnchangedHours     int
+	TerrorAnalysisEvidenceHours      int
+	TerrorAnalysisMaxEvidence        int
 	CollectorRole                    string
 	CORSAllowedOrigins               []string
 	APIBearerToken                   string
@@ -240,11 +249,16 @@ func Default() Config {
 		VettingProvider:                  "openai-compatible",
 		VettingBaseURL:                   "https://api.openai.com/v1",
 		VettingModel:                     "gpt-4.1-mini",
+		VettingModelFallbacks:            nil,
 		VettingTemperature:               0,
 		VettingTimeoutMS:                 45000,
 		VettingMaxSampleItems:            6,
+		LLMModelDiscoveryEnabled:         true,
+		LLMModelRefreshHours:             168,
+		LLMMaxOutputTokens:               1200,
 		AlertLLMEnabled:                  false,
 		AlertLLMModel:                    "gpt-4.1-mini",
+		AlertLLMModelFallbacks:           nil,
 		AlertLLMMaxItemsPerSource:        4,
 		AlarmRelevanceThreshold:          0.72,
 		CategoryDictionaryPath:           "registry/category_dictionary.json",
@@ -275,6 +289,10 @@ func Default() Config {
 		UCDPAPIVersion:                   "26.0.1",
 		ZoneBriefingRefreshHours:         24,
 		ZoneBriefingACLEDEnabled:         true,
+		TerrorAnalysisRefreshHours:       24,
+		TerrorAnalysisUnchangedHours:     72,
+		TerrorAnalysisEvidenceHours:      72,
+		TerrorAnalysisMaxEvidence:        24,
 		CollectorRole:                    "all",
 		ResetAgentOps:                    false,
 		PacksDir:                         "/packs",
@@ -376,11 +394,21 @@ func FromEnv() Config {
 	cfg.VettingBaseURL = envString("SOURCE_VETTING_BASE_URL", cfg.VettingBaseURL)
 	cfg.VettingAPIKey = envString("SOURCE_VETTING_API_KEY", cfg.VettingAPIKey)
 	cfg.VettingModel = envString("SOURCE_VETTING_MODEL", cfg.VettingModel)
+	cfg.VettingModelFallbacks = envCSV("SOURCE_VETTING_MODEL_FALLBACKS", cfg.VettingModelFallbacks)
+	cfg.VettingProvider = envString("LLM_PROVIDER", cfg.VettingProvider)
+	cfg.VettingBaseURL = envString("LLM_BASE_URL", cfg.VettingBaseURL)
+	cfg.VettingAPIKey = envString("LLM_API_KEY", cfg.VettingAPIKey)
+	cfg.VettingModel = envString("LLM_MODEL", cfg.VettingModel)
+	cfg.VettingModelFallbacks = envCSV("LLM_MODEL_FALLBACKS", cfg.VettingModelFallbacks)
 	cfg.VettingTemperature = envFloat("SOURCE_VETTING_TEMPERATURE", cfg.VettingTemperature)
 	cfg.VettingTimeoutMS = envInt("SOURCE_VETTING_TIMEOUT_MS", cfg.VettingTimeoutMS)
 	cfg.VettingMaxSampleItems = envInt("SOURCE_VETTING_MAX_SAMPLE_ITEMS", cfg.VettingMaxSampleItems)
+	cfg.LLMModelDiscoveryEnabled = envBool("LLM_MODEL_DISCOVERY_ENABLED", cfg.LLMModelDiscoveryEnabled)
+	cfg.LLMModelRefreshHours = envInt("LLM_MODEL_REFRESH_HOURS", cfg.LLMModelRefreshHours)
+	cfg.LLMMaxOutputTokens = envInt("LLM_MAX_OUTPUT_TOKENS", cfg.LLMMaxOutputTokens)
 	cfg.AlertLLMEnabled = envBool("ALERT_LLM_ENABLED", cfg.AlertLLMEnabled)
 	cfg.AlertLLMModel = envString("ALERT_LLM_MODEL", cfg.AlertLLMModel)
+	cfg.AlertLLMModelFallbacks = envCSV("ALERT_LLM_MODEL_FALLBACKS", cfg.AlertLLMModelFallbacks)
 	cfg.AlertLLMMaxItemsPerSource = envInt("ALERT_LLM_MAX_ITEMS_PER_SOURCE", cfg.AlertLLMMaxItemsPerSource)
 	cfg.AlarmRelevanceThreshold = envFloat("ALARM_RELEVANCE_THRESHOLD", cfg.AlarmRelevanceThreshold)
 	cfg.CategoryDictionaryPath = envString("CATEGORY_DICTIONARY_PATH", cfg.CategoryDictionaryPath)
@@ -423,6 +451,10 @@ func FromEnv() Config {
 	cfg.UCDPAPIVersion = envString("UCDP_API_VERSION", cfg.UCDPAPIVersion)
 	cfg.ZoneBriefingRefreshHours = envInt("ZONE_BRIEFING_REFRESH_HOURS", cfg.ZoneBriefingRefreshHours)
 	cfg.ZoneBriefingACLEDEnabled = envBool("ZONE_BRIEFING_ACLED_ENABLED", cfg.ZoneBriefingACLEDEnabled)
+	cfg.TerrorAnalysisRefreshHours = envInt("TERROR_ANALYSIS_REFRESH_HOURS", cfg.TerrorAnalysisRefreshHours)
+	cfg.TerrorAnalysisUnchangedHours = envInt("TERROR_ANALYSIS_UNCHANGED_HOURS", cfg.TerrorAnalysisUnchangedHours)
+	cfg.TerrorAnalysisEvidenceHours = envInt("TERROR_ANALYSIS_EVIDENCE_HOURS", cfg.TerrorAnalysisEvidenceHours)
+	cfg.TerrorAnalysisMaxEvidence = envInt("TERROR_ANALYSIS_MAX_EVIDENCE", cfg.TerrorAnalysisMaxEvidence)
 	cfg.CollectorRole = strings.ToLower(strings.TrimSpace(envString("COLLECTOR_ROLE", cfg.CollectorRole)))
 	cfg.CORSAllowedOrigins = envCSV("CORS_ALLOWED_ORIGINS", cfg.CORSAllowedOrigins)
 	cfg.APIBearerToken = envString("API_BEARER_TOKEN", cfg.APIBearerToken)

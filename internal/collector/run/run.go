@@ -1299,14 +1299,18 @@ func (r Runner) fetchHTML(ctx context.Context, fetcher fetch.Fetcher, nctx norma
 	}
 	out := make([]model.Alert, 0, len(items))
 	if nctx.Config.AlertLLMEnabled {
-		alertLLM := vet.NewClient(config.Config{
-			VettingTimeoutMS:   nctx.Config.VettingTimeoutMS,
-			VettingBaseURL:     nctx.Config.VettingBaseURL,
-			VettingAPIKey:      nctx.Config.VettingAPIKey,
-			VettingProvider:    nctx.Config.VettingProvider,
-			VettingModel:       nctx.Config.AlertLLMModel,
-			VettingTemperature: 0,
-		})
+		alertLLM := vet.NewClientForWorkload(config.Config{
+			VettingTimeoutMS:         nctx.Config.VettingTimeoutMS,
+			VettingBaseURL:           nctx.Config.VettingBaseURL,
+			VettingAPIKey:            nctx.Config.VettingAPIKey,
+			VettingProvider:          nctx.Config.VettingProvider,
+			VettingModel:             nctx.Config.AlertLLMModel,
+			VettingModelFallbacks:    nctx.Config.AlertLLMModelFallbacks,
+			LLMModelDiscoveryEnabled: nctx.Config.LLMModelDiscoveryEnabled,
+			LLMModelRefreshHours:     nctx.Config.LLMModelRefreshHours,
+			LLMMaxOutputTokens:       nctx.Config.LLMMaxOutputTokens,
+			VettingTemperature:       0,
+		}, vet.WorkloadAlertClassification)
 		classified, err := translate.BatchLLM(ctx, nctx.Config, alertLLM, source.Category, items)
 		if err != nil {
 			fmt.Fprintf(r.stderr, "WARN %s: alert llm failed: %v\n", source.Source.AuthorityName, err)
@@ -2467,6 +2471,9 @@ func (r Runner) writeZoneBriefings(ctx context.Context, cfg config.Config, sourc
 		return nil
 	}
 	outDir := filepath.Dir(cfg.ZoneBriefingsOutputPath)
+	now := r.now()
+	terrorAnalysisCachePath := filepath.Join(outDir, "geo", "terror-analysis-llm.json")
+	terrorAnalysisDue := terrorAnalysisNeedsRefresh(cfg, terrorAnalysisCachePath, cfg.StateOutputPath, now)
 
 	// Staleness check: skip if output file is fresh enough.
 	if info, err := os.Stat(cfg.ZoneBriefingsOutputPath); err == nil {
@@ -2478,10 +2485,15 @@ func (r Runner) writeZoneBriefings(ctx context.Context, cfg config.Config, sourc
 		if age < time.Duration(cfg.ZoneBriefingRefreshHours)*time.Hour &&
 			zoneBriefingsFileHasRecords(cfg.ZoneBriefingsOutputPath) &&
 			!conflictStatsNeedsLLMRefresh(conflictStatsPath) &&
-			!conflictZonesNeedsDynamicRefresh(conflictZonesPath, hasCurrentConflicts) {
+			!conflictZonesNeedsDynamicRefresh(conflictZonesPath, hasCurrentConflicts) &&
+			!terrorAnalysisDue {
 			fmt.Fprintf(r.stderr, "zone briefings: skipping, file is %.1fh old (threshold %dh)\n", age.Hours(), cfg.ZoneBriefingRefreshHours)
 			return nil
 		}
+	}
+	terrorAssessments, err := refreshTerrorAnalysisFromLLM(ctx, cfg, terrorAnalysisCachePath, cfg.StateOutputPath, now)
+	if err != nil {
+		fmt.Fprintf(r.stderr, "WARN terror analysis llm refresh: %v\n", err)
 	}
 
 	token := strings.TrimSpace(cfg.UCDPAccessToken)
@@ -2489,10 +2501,17 @@ func (r Runner) writeZoneBriefings(ctx context.Context, cfg config.Config, sourc
 		if err := output.WriteZoneBriefings(cfg.ZoneBriefingsOutputPath, []model.ZoneBriefingRecord{}); err != nil {
 			return err
 		}
+		if strings.TrimSpace(cfg.CountryBoundariesPath) != "" {
+			terrorZones, _, err := buildDynamicTerrorZonesFromAlerts(cfg.CountryBoundariesPath, cfg.StateOutputPath, nil, now, terrorAssessments)
+			if err == nil && dynamicOverlayFeatureCount(terrorZones) > 0 {
+				if err := writeJSONArtifact(filepath.Join(outDir, "geo", "terrorism-zones.geojson"), terrorZones); err != nil {
+					return err
+				}
+			}
+		}
 		return writeJSONArtifact(filepath.Join(outDir, "ucdp-current-conflicts.json"), []map[string]any{})
 	}
 	headers := map[string]string{"x-ucdp-access-token": token}
-	now := r.now()
 	previousCurrentConflicts := readCurrentConflictsArtifact(filepath.Join(outDir, "ucdp-current-conflicts.json"))
 	var zoneDB *sourcedb.DB
 	if isSQLiteRegistryPath(cfg.RegistryPath) {
@@ -2672,11 +2691,7 @@ func (r Runner) writeZoneBriefings(ctx context.Context, cfg config.Config, sourc
 				}
 			}
 		}
-		terrorLLMRegions, err := refreshWeeklyTerrorRegionsFromLLM(ctx, cfg, filepath.Join(geoDir, "terror-activity-llm.json"), now)
-		if err != nil {
-			fmt.Fprintf(r.stderr, "WARN terror regions llm sync: %v\n", err)
-		}
-		terrorZonesDynamic, terrorOverlays, err := buildDynamicTerrorZonesFromAlerts(cfg.CountryBoundariesPath, cfg.StateOutputPath, currentConflicts, now, terrorLLMRegions)
+		terrorZonesDynamic, terrorOverlays, err := buildDynamicTerrorZonesFromAlerts(cfg.CountryBoundariesPath, cfg.StateOutputPath, currentConflicts, now, terrorAssessments)
 		if err == nil {
 			if dynamicOverlayFeatureCount(terrorZonesDynamic) > 0 {
 				if err := writeJSONArtifact(filepath.Join(geoDir, "terrorism-zones.geojson"), terrorZonesDynamic); err != nil {
@@ -2732,51 +2747,6 @@ type terrorRegion struct {
 	Lng  float64 `json:"lng"`
 }
 
-type terrorRegionCache struct {
-	UpdatedAt string         `json:"updated_at"`
-	Regions   []terrorRegion `json:"regions"`
-}
-
-func refreshWeeklyTerrorRegionsFromLLM(ctx context.Context, cfg config.Config, cachePath string, now time.Time) ([]terrorRegion, error) {
-	seedRegions := loadSeedTerrorRegions()
-	cached, cachedAt := readTerrorRegionCache(cachePath)
-	mergedSeedAndCached := mergeTerrorRegions(seedRegions, cached)
-
-	if strings.TrimSpace(cfg.VettingAPIKey) == "" {
-		return mergedSeedAndCached, nil
-	}
-	if !cachedAt.IsZero() && now.Sub(cachedAt) < 7*24*time.Hour && len(cached) > 0 {
-		return mergeTerrorRegions(seedRegions, cached), nil
-	}
-
-	client := vet.NewClient(config.Config{
-		VettingTimeoutMS:   cfg.VettingTimeoutMS,
-		VettingBaseURL:     cfg.VettingBaseURL,
-		VettingAPIKey:      cfg.VettingAPIKey,
-		VettingProvider:    cfg.VettingProvider,
-		VettingModel:       cfg.VettingModel,
-		VettingTemperature: 0,
-	})
-	resp, err := client.Complete(ctx, []vet.Message{
-		{Role: "system", Content: "Return plain text only. Facts only. No markdown. No commentary."},
-		{Role: "user", Content: "Give me current regions with terror activity in geo coordinates only.\nOutput one line per region using this exact format:\n<Region name>: <lat>°N/S, <lng>°E/W"},
-	})
-	if err != nil {
-		return mergedSeedAndCached, err
-	}
-	llmRegions := parseTerrorRegionsFromText(resp)
-	if len(llmRegions) == 0 {
-		return mergedSeedAndCached, fmt.Errorf("llm returned no parseable terror regions")
-	}
-	if err := writeTerrorRegionCache(cachePath, terrorRegionCache{
-		UpdatedAt: now.UTC().Format(time.RFC3339),
-		Regions:   llmRegions,
-	}); err != nil {
-		return mergeTerrorRegions(seedRegions, llmRegions), err
-	}
-	return mergeTerrorRegions(seedRegions, llmRegions), nil
-}
-
 func loadSeedTerrorRegions() []terrorRegion {
 	paths := []string{
 		"registry/geo/terror-activity-seed.geojson",
@@ -2820,99 +2790,6 @@ func loadSeedTerrorRegions() []terrorRegion {
 	return nil
 }
 
-func parseTerrorRegionsFromText(raw string) []terrorRegion {
-	lines := strings.Split(raw, "\n")
-	re := regexp.MustCompile(`(?i)^\s*(?:[-*]\s*)?([^:]+):\s*([+-]?\d+(?:\.\d+)?)\s*°?\s*([NS])?\s*,\s*([+-]?\d+(?:\.\d+)?)\s*°?\s*([EW])?\s*$`)
-	out := make([]terrorRegion, 0, len(lines))
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		m := re.FindStringSubmatch(line)
-		if len(m) != 6 {
-			continue
-		}
-		lat, errLat := strconv.ParseFloat(strings.TrimSpace(m[2]), 64)
-		lng, errLng := strconv.ParseFloat(strings.TrimSpace(m[4]), 64)
-		if errLat != nil || errLng != nil {
-			continue
-		}
-		ns := strings.ToUpper(strings.TrimSpace(m[3]))
-		ew := strings.ToUpper(strings.TrimSpace(m[5]))
-		if ns == "S" && lat > 0 {
-			lat = -lat
-		}
-		if ns == "N" && lat < 0 {
-			lat = -lat
-		}
-		if ew == "W" && lng > 0 {
-			lng = -lng
-		}
-		if ew == "E" && lng < 0 {
-			lng = -lng
-		}
-		if math.Abs(lat) > 90 || math.Abs(lng) > 180 {
-			continue
-		}
-		out = append(out, terrorRegion{
-			Name: strings.TrimSpace(m[1]),
-			Lat:  lat,
-			Lng:  lng,
-		})
-	}
-	return dedupTerrorRegions(out)
-}
-
-func dedupTerrorRegions(regions []terrorRegion) []terrorRegion {
-	seen := map[string]struct{}{}
-	out := make([]terrorRegion, 0, len(regions))
-	for _, region := range regions {
-		key := strings.ToLower(strings.TrimSpace(region.Name))
-		if key == "" {
-			key = fmt.Sprintf("%0.3f,%0.3f", region.Lat, region.Lng)
-		}
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		out = append(out, region)
-	}
-	return out
-}
-
-func mergeTerrorRegions(a []terrorRegion, b []terrorRegion) []terrorRegion {
-	return dedupTerrorRegions(append(append([]terrorRegion{}, a...), b...))
-}
-
-func readTerrorRegionCache(path string) ([]terrorRegion, time.Time) {
-	body, err := os.ReadFile(path)
-	if err != nil {
-		return nil, time.Time{}
-	}
-	var cache terrorRegionCache
-	if err := json.Unmarshal(body, &cache); err != nil {
-		return nil, time.Time{}
-	}
-	ts, err := time.Parse(time.RFC3339, strings.TrimSpace(cache.UpdatedAt))
-	if err != nil {
-		ts = time.Time{}
-	}
-	return cache.Regions, ts
-}
-
-func writeTerrorRegionCache(path string, cache terrorRegionCache) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	payload, err := json.MarshalIndent(cache, "", "  ")
-	if err != nil {
-		return err
-	}
-	payload = append(payload, '\n')
-	return os.WriteFile(path, payload, 0o644)
-}
-
 func terrorRegionFeatures(regions []terrorRegion) []any {
 	out := make([]any, 0, len(regions))
 	for _, region := range regions {
@@ -2925,11 +2802,11 @@ func terrorRegionFeatures(regions []terrorRegion) []any {
 			"properties": map[string]any{
 				"name":             name,
 				"lens_id":          "terror-seed-" + slugify(name),
-				"status":           "active",
-				"type":             "elevated",
-				"threat":           "Weekly terrorism region sync",
-				"source":           "kafSIEM weekly sync",
-				"source_timeframe": "weekly",
+				"status":           "baseline",
+				"type":             "baseline",
+				"threat":           "Curated terror activity baseline",
+				"source":           "kafSIEM curated terror region registry",
+				"source_timeframe": "baseline",
 			},
 			"geometry": terrorRegionPolygon(region.Lat, region.Lng, 2.4),
 		})
@@ -2968,7 +2845,7 @@ func slugify(value string) string {
 	return value
 }
 
-func buildDynamicTerrorZonesFromAlerts(boundariesPath string, statePath string, currentConflicts []map[string]any, now time.Time, llmRegions []terrorRegion) (map[string]any, map[string]map[string]any, error) {
+func buildDynamicTerrorZonesFromAlerts(boundariesPath string, statePath string, currentConflicts []map[string]any, now time.Time, assessments []terrorAssessment) (map[string]any, map[string]map[string]any, error) {
 	collection, err := readBoundaryCollection(boundariesPath)
 	if err != nil {
 		return nil, nil, err
@@ -3021,6 +2898,10 @@ func buildDynamicTerrorZonesFromAlerts(boundariesPath string, statePath string, 
 		}
 	}
 	const minTerrorEvents365d = 3
+	assessmentByCountry := map[string]terrorAssessment{}
+	for _, assessment := range assessments {
+		assessmentByCountry[strings.ToUpper(strings.TrimSpace(assessment.CountryCode))] = assessment
+	}
 	baseFeatures := make([]any, 0, len(countByCode365d))
 	for code, count365 := range countByCode365d {
 		if count365 < minTerrorEvents365d {
@@ -3040,27 +2921,34 @@ func buildDynamicTerrorZonesFromAlerts(boundariesPath string, statePath string, 
 		if countryLabel == "" {
 			countryLabel = code
 		}
+		properties := map[string]any{
+			"name":             countryLabel + " terror activity",
+			"lens_id":          "terror-" + strings.ToLower(code),
+			"status":           status,
+			"type":             zoneType,
+			"threat":           "kafSIEM terror signal aggregation",
+			"country_code":     code,
+			"country_role":     "primary",
+			"source":           "kafSIEM live terror aggregation",
+			"events_365d":      count365,
+			"events_90d":       countByCode90d[code],
+			"source_timeframe": "365d",
+			"dominant_actor":   dominantLabel(actorByCode[code]),
+			"dominant_event":   dominantLabel(eventTypeByCode[code]),
+		}
+		if assessment, ok := assessmentByCountry[code]; ok {
+			properties["llm_analysis"] = assessment.Summary
+			properties["llm_risk_level"] = assessment.RiskLevel
+			properties["llm_confidence"] = assessment.Confidence
+			properties["llm_evidence_ids"] = assessment.EvidenceIDs
+		}
 		baseFeatures = append(baseFeatures, map[string]any{
-			"type": "Feature",
-			"properties": mergeMaps(boundary.Properties, map[string]any{
-				"name":             countryLabel + " terror activity",
-				"lens_id":          "terror-" + strings.ToLower(code),
-				"status":           status,
-				"type":             zoneType,
-				"threat":           "kafSIEM terror signal aggregation",
-				"country_code":     code,
-				"country_role":     "primary",
-				"source":           "kafSIEM live terror aggregation",
-				"events_365d":      count365,
-				"events_90d":       countByCode90d[code],
-				"source_timeframe": "365d",
-				"dominant_actor":   dominantLabel(actorByCode[code]),
-				"dominant_event":   dominantLabel(eventTypeByCode[code]),
-			}),
-			"geometry": boundary.Geometry,
+			"type":       "Feature",
+			"properties": mergeMaps(boundary.Properties, properties),
+			"geometry":   boundary.Geometry,
 		})
 	}
-	baseFeatures = append(baseFeatures, terrorRegionFeatures(llmRegions)...)
+	baseFeatures = append(baseFeatures, terrorRegionFeatures(loadSeedTerrorRegions())...)
 	baseCollection := map[string]any{
 		"type":     "FeatureCollection",
 		"features": baseFeatures,
@@ -3095,24 +2983,31 @@ func buildDynamicTerrorZonesFromAlerts(boundariesPath string, statePath string, 
 			if countryLabel == "" {
 				countryLabel = code
 			}
+			properties := map[string]any{
+				"name":             countryLabel + " terror activity",
+				"lens_id":          lensID,
+				"status":           status,
+				"type":             zoneType,
+				"threat":           "kafSIEM terror signal aggregation",
+				"country_code":     code,
+				"country_role":     "primary",
+				"source":           "kafSIEM live terror aggregation",
+				"events_365d":      countByCode365d[code],
+				"events_90d":       countByCode90d[code],
+				"source_timeframe": "365d",
+				"dominant_actor":   dominantLabel(actorByCode[code]),
+				"dominant_event":   dominantLabel(eventTypeByCode[code]),
+			}
+			if assessment, ok := assessmentByCountry[code]; ok {
+				properties["llm_analysis"] = assessment.Summary
+				properties["llm_risk_level"] = assessment.RiskLevel
+				properties["llm_confidence"] = assessment.Confidence
+				properties["llm_evidence_ids"] = assessment.EvidenceIDs
+			}
 			lensFeatures = append(lensFeatures, map[string]any{
-				"type": "Feature",
-				"properties": mergeMaps(boundary.Properties, map[string]any{
-					"name":             countryLabel + " terror activity",
-					"lens_id":          lensID,
-					"status":           status,
-					"type":             zoneType,
-					"threat":           "kafSIEM terror signal aggregation",
-					"country_code":     code,
-					"country_role":     "primary",
-					"source":           "kafSIEM live terror aggregation",
-					"events_365d":      countByCode365d[code],
-					"events_90d":       countByCode90d[code],
-					"source_timeframe": "365d",
-					"dominant_actor":   dominantLabel(actorByCode[code]),
-					"dominant_event":   dominantLabel(eventTypeByCode[code]),
-				}),
-				"geometry": boundary.Geometry,
+				"type":       "Feature",
+				"properties": mergeMaps(boundary.Properties, properties),
+				"geometry":   boundary.Geometry,
 			})
 		}
 		overlays[lensID] = map[string]any{
@@ -4547,14 +4442,18 @@ func (r Runner) ensureZoneBriefLLMSummary(
 	if !needsHistorical && !needsAnalysis {
 		return existing, nil
 	}
-	llm := vet.NewClient(config.Config{
-		VettingTimeoutMS:   cfg.VettingTimeoutMS,
-		VettingBaseURL:     cfg.VettingBaseURL,
-		VettingAPIKey:      cfg.VettingAPIKey,
-		VettingProvider:    cfg.VettingProvider,
-		VettingModel:       cfg.VettingModel,
-		VettingTemperature: 0,
-	})
+	llm := vet.NewClientForWorkload(config.Config{
+		VettingTimeoutMS:         cfg.VettingTimeoutMS,
+		VettingBaseURL:           cfg.VettingBaseURL,
+		VettingAPIKey:            cfg.VettingAPIKey,
+		VettingProvider:          cfg.VettingProvider,
+		VettingModel:             cfg.VettingModel,
+		VettingModelFallbacks:    cfg.VettingModelFallbacks,
+		LLMModelDiscoveryEnabled: cfg.LLMModelDiscoveryEnabled,
+		LLMModelRefreshHours:     cfg.LLMModelRefreshHours,
+		LLMMaxOutputTokens:       cfg.LLMMaxOutputTokens,
+		VettingTemperature:       0,
+	}, vet.WorkloadConflictAnalysis)
 	title := stringValue(row["title"])
 	sideA := stringValue(row["side_a"])
 	sideB := stringValue(row["side_b"])
