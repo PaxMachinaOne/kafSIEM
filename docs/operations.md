@@ -217,6 +217,12 @@ completion capped at eight output tokens. For unattended installation, use
 `LLM_SETUP_PROBE=true` to request the same check; it is skipped by default to
 avoid unexpected API usage.
 
+Updates also migrate configured legacy `SOURCE_VETTING_PROVIDER`,
+`SOURCE_VETTING_BASE_URL`, `SOURCE_VETTING_API_KEY`, `SOURCE_VETTING_MODEL`, and
+`SOURCE_VETTING_MODEL_FALLBACKS` values into their canonical `LLM_*` fields.
+Canonical values are never overwritten, and migration logs contain field names
+only—not credentials.
+
 ### Token cost
 
 Discovery vetting is lightweight: one short prompt per candidate with up to six

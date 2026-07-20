@@ -138,7 +138,10 @@ The canonical shared settings are `LLM_PROVIDER`, `LLM_BASE_URL`, `LLM_API_KEY`,
 `LLM_MODEL`, and `LLM_MODEL_FALLBACKS`. Existing deployments using the legacy
 `SOURCE_VETTING_PROVIDER`, `SOURCE_VETTING_BASE_URL`, `SOURCE_VETTING_API_KEY`,
 `SOURCE_VETTING_MODEL`, and `SOURCE_VETTING_MODEL_FALLBACKS` names continue to
-work; canonical values take precedence when both are present.
+work. During update, the installer copies each configured legacy value into its
+canonical field and reports the migrated field name without displaying its
+value. Existing canonical values always win, and legacy fields are retained for
+rollback compatibility.
 
 `GET /api/health` reports configured and resolved models, inventory timestamps,
 last errors, token usage, and provider-reported cost when available.

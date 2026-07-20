@@ -161,6 +161,28 @@ prompt_env_bool() {
   echo "$new_val"
 }
 
+migrate_env_value() {
+  local env_file="$1"
+  local legacy_key="$2"
+  local canonical_key="$3"
+  local legacy_value
+
+  [[ -z "$(env_value "$env_file" "$canonical_key")" ]] || return 0
+  legacy_value="$(env_value "$env_file" "$legacy_key")"
+  [[ -n "$legacy_value" ]] || return 0
+  upsert_env "$env_file" "$canonical_key" "$legacy_value"
+  info "Migrated legacy setting ${legacy_key} -> ${canonical_key}."
+}
+
+migrate_legacy_llm_settings() {
+  local env_file="$1"
+  migrate_env_value "$env_file" "SOURCE_VETTING_PROVIDER" "LLM_PROVIDER"
+  migrate_env_value "$env_file" "SOURCE_VETTING_BASE_URL" "LLM_BASE_URL"
+  migrate_env_value "$env_file" "SOURCE_VETTING_API_KEY" "LLM_API_KEY"
+  migrate_env_value "$env_file" "SOURCE_VETTING_MODEL" "LLM_MODEL"
+  migrate_env_value "$env_file" "SOURCE_VETTING_MODEL_FALLBACKS" "LLM_MODEL_FALLBACKS"
+}
+
 llm_model_ids() {
   local response_file="$1"
   if command -v jq >/dev/null 2>&1; then
@@ -308,7 +330,6 @@ configure_osint_settings() {
   local env_file="$1"
   local source_vetting_enabled
   local alert_llm_enabled
-  local legacy_value
 
   echo ""
   echo "# OSINT setup"
@@ -318,26 +339,6 @@ configure_osint_settings() {
 
   echo ""
   echo "# OpenAI-compatible LLM endpoint (shared by all OSINT LLM workloads)"
-  if [[ -z "$(env_value "$env_file" "LLM_PROVIDER")" ]]; then
-    legacy_value="$(env_value "$env_file" "SOURCE_VETTING_PROVIDER")"
-    [[ -z "$legacy_value" ]] || upsert_env "$env_file" "LLM_PROVIDER" "$legacy_value"
-  fi
-  if [[ -z "$(env_value "$env_file" "LLM_BASE_URL")" ]]; then
-    legacy_value="$(env_value "$env_file" "SOURCE_VETTING_BASE_URL")"
-    [[ -z "$legacy_value" ]] || upsert_env "$env_file" "LLM_BASE_URL" "$legacy_value"
-  fi
-  if [[ -z "$(env_value "$env_file" "LLM_API_KEY")" ]]; then
-    legacy_value="$(env_value "$env_file" "SOURCE_VETTING_API_KEY")"
-    [[ -z "$legacy_value" ]] || upsert_env "$env_file" "LLM_API_KEY" "$legacy_value"
-  fi
-  if [[ -z "$(env_value "$env_file" "LLM_MODEL")" ]]; then
-    legacy_value="$(env_value "$env_file" "SOURCE_VETTING_MODEL")"
-    [[ -z "$legacy_value" ]] || upsert_env "$env_file" "LLM_MODEL" "$legacy_value"
-  fi
-  if [[ -z "$(env_value "$env_file" "LLM_MODEL_FALLBACKS")" ]]; then
-    legacy_value="$(env_value "$env_file" "SOURCE_VETTING_MODEL_FALLBACKS")"
-    [[ -z "$legacy_value" ]] || upsert_env "$env_file" "LLM_MODEL_FALLBACKS" "$legacy_value"
-  fi
   prompt_env_value "$env_file" "LLM_PROVIDER" "LLM Provider Label"
   prompt_env_value "$env_file" "LLM_BASE_URL" "OpenAI-compatible API Base URL"
   prompt_env_value "$env_file" "LLM_API_KEY" "LLM API Key" "true"
@@ -642,6 +643,10 @@ configure_env() {
   else
     cp "$example_file" "$env_file"
     info "Created .env from .env.example."
+  fi
+
+  if [[ "$INSTALL_MODE" == "update" ]]; then
+    migrate_legacy_llm_settings "$env_file"
   fi
 
   info "Guided setup only asks for the profile-relevant settings."
