@@ -7,6 +7,7 @@
 #   REPO_URL=https://github.com/scalytics/kafSIEM.git
 #   REPO_REF=main
 #   INSTALL_DIR=$HOME/kafsiem
+#   LLM_SETUP_PROBE=true|false
 
 set -euo pipefail
 
@@ -160,6 +161,111 @@ prompt_env_bool() {
   echo "$new_val"
 }
 
+llm_model_ids() {
+  local response_file="$1"
+  if command -v jq >/dev/null 2>&1; then
+    jq -r '(.data // .models // [])[] | (.id // .name // empty), (.aliases[]? // empty)' "$response_file" 2>/dev/null
+    return
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import json,sys; data=json.load(open(sys.argv[1])); items=data.get("data") or data.get("models") or []; print("\n".join(str(value) for item in items for value in ([item.get("id") or item.get("name")] + list(item.get("aliases") or [])) if value))' "$response_file" 2>/dev/null
+    return
+  fi
+  return 1
+}
+
+probe_llm_endpoint() {
+  local env_file="$1"
+  local base_url
+  local api_key
+  local model
+  local normalized_base
+  local models_url
+  local completions_url
+  local models_file
+  local completion_file
+  local models_status
+  local completion_status
+  local available_models
+  local replacement
+  local escaped_model
+  local payload
+  local run_probe="false"
+  local curl_headers=(-H "Accept: application/json")
+
+  case "${LLM_SETUP_PROBE:-}" in
+    1|true|yes|on) run_probe="true" ;;
+    0|false|no|off) run_probe="false" ;;
+    *)
+      if [[ -t 0 || -t 1 ]]; then
+        run_probe="$(prompt_yes_no "  Test the LLM endpoint and preferred model now" "true")"
+      fi
+      ;;
+  esac
+  [[ "$run_probe" == "true" ]] || return 0
+
+  base_url="$(env_value "$env_file" "LLM_BASE_URL")"
+  api_key="$(env_value "$env_file" "LLM_API_KEY")"
+  model="$(env_value "$env_file" "LLM_MODEL")"
+  if [[ -z "$base_url" || -z "$model" ]]; then
+    warn "LLM test skipped: both LLM_BASE_URL and LLM_MODEL are required."
+    return 0
+  fi
+  if ! command -v curl >/dev/null 2>&1; then
+    warn "LLM test skipped: curl is not installed."
+    return 0
+  fi
+
+  normalized_base="${base_url%/}"
+  normalized_base="${normalized_base%/chat/completions}"
+  models_url="${normalized_base}/models"
+  completions_url="${normalized_base}/chat/completions"
+  models_file="$(mktemp)"
+  completion_file="$(mktemp)"
+  if [[ -n "$api_key" ]]; then
+    curl_headers+=(-H "Authorization: Bearer ${api_key}")
+  fi
+
+  info "Probing LLM model inventory at ${models_url}"
+  models_status="$(curl -sS --connect-timeout 10 --max-time 30 -o "$models_file" -w '%{http_code}' "${curl_headers[@]}" "$models_url" || true)"
+  if [[ "$models_status" =~ ^2[0-9][0-9]$ ]]; then
+    available_models="$(llm_model_ids "$models_file" || true)"
+    if [[ -n "$available_models" ]]; then
+      info "LLM model inventory is reachable."
+      if ! grep -Fxq "$model" <<< "$available_models"; then
+        warn "Preferred model '$model' is not present in the returned inventory."
+        echo "  Available models (first 20):"
+        echo "$available_models" | sed -n '1,20p' | sed 's/^/    - /'
+        if [[ -t 0 || -t 1 ]]; then
+          replacement="$(read_prompt "  Enter a listed preferred model, or press Enter to keep '${model}': ")"
+          if [[ -n "$replacement" ]]; then
+            model="$replacement"
+            upsert_env "$env_file" "LLM_MODEL" "$model"
+          fi
+        fi
+      else
+        info "Preferred model '$model' is listed."
+      fi
+    else
+      warn "Model inventory responded successfully but could not be parsed (install jq or python3 for model verification)."
+    fi
+  else
+    warn "Model inventory probe returned HTTP ${models_status:-000}; continuing because some compatible gateways do not expose /models."
+  fi
+
+  escaped_model="${model//\\/\\\\}"
+  escaped_model="${escaped_model//\"/\\\"}"
+  payload="{\"model\":\"${escaped_model}\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with OK only.\"}],\"temperature\":0,\"max_tokens\":8}"
+  info "Testing a minimal completion with model '$model' (up to 8 output tokens)."
+  completion_status="$(curl -sS --connect-timeout 10 --max-time 45 -o "$completion_file" -w '%{http_code}' "${curl_headers[@]}" -H "Content-Type: application/json" -d "$payload" "$completions_url" || true)"
+  if [[ "$completion_status" =~ ^2[0-9][0-9]$ ]] && grep -q '"choices"' "$completion_file"; then
+    info "LLM completion test passed for '$model'."
+  else
+    warn "LLM completion test failed for '$model' (HTTP ${completion_status:-000}). Check the URL, key permissions, model, and account credits."
+  fi
+  rm -f "$models_file" "$completion_file"
+}
+
 default_reject_topic() {
   local group_name="${1:-}"
   if [[ -z "$group_name" ]]; then
@@ -233,10 +339,11 @@ configure_osint_settings() {
     [[ -z "$legacy_value" ]] || upsert_env "$env_file" "LLM_MODEL_FALLBACKS" "$legacy_value"
   fi
   prompt_env_value "$env_file" "LLM_PROVIDER" "LLM Provider Label"
-  prompt_env_value "$env_file" "LLM_BASE_URL" "LLM Base URL"
+  prompt_env_value "$env_file" "LLM_BASE_URL" "OpenAI-compatible API Base URL"
   prompt_env_value "$env_file" "LLM_API_KEY" "LLM API Key" "true"
   prompt_env_value "$env_file" "LLM_MODEL" "Preferred LLM Model"
   prompt_env_value "$env_file" "LLM_MODEL_FALLBACKS" "LLM Model Fallbacks"
+  probe_llm_endpoint "$env_file"
 
   source_vetting_enabled="$(prompt_env_bool "$env_file" "SOURCE_VETTING_ENABLED" "Enable Source Vetting LLM")"
   if [[ "$source_vetting_enabled" == "true" ]]; then

@@ -103,6 +103,16 @@ LLM_MAX_OUTPUT_TOKENS=1200
 
 Put the real API key only in your local `.env`. Do not commit it.
 
+During interactive install or update, the setup script offers to validate this
+configuration immediately. It calls `GET /models`, shows when the preferred
+model is absent, lets the operator replace it with a returned model ID, and
+sends one minimal completion capped at eight output tokens. The check is
+non-fatal because some compatible gateways omit `/models`.
+
+Unattended updates never make the billable completion request by default. Set
+`LLM_SETUP_PROBE=true` to opt in or `LLM_SETUP_PROBE=false` to suppress the
+interactive check explicitly.
+
 ### Model discovery and failover
 
 The LLM runtime is OpenAI-compatible and shared by source vetting, search

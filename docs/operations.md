@@ -211,6 +211,12 @@ LLM_MODEL=grok-4.3
 LLM_MODEL_FALLBACKS=grok-4.3-latest,grok-latest
 ```
 
+Interactive setup/update offers an immediate model test after these values are
+entered. It verifies the model inventory when available and performs one
+completion capped at eight output tokens. For unattended installation, use
+`LLM_SETUP_PROBE=true` to request the same check; it is skipped by default to
+avoid unexpected API usage.
+
 ### Token cost
 
 Discovery vetting is lightweight: one short prompt per candidate with up to six
