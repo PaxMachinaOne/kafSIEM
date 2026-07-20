@@ -74,8 +74,36 @@ leave these unset and rely on built-in defaults.
 | `UCDP_API_VERSION` | `26.0.1` |
 | `ZONE_BRIEFING_REFRESH_HOURS` | `24` |
 | `ZONE_BRIEFING_ACLED_ENABLED` | `true` |
+| `TERROR_ANALYSIS_REFRESH_HOURS` | `24` |
+| `TERROR_ANALYSIS_UNCHANGED_HOURS` | `72` |
+| `TERROR_ANALYSIS_EVIDENCE_HOURS` | `72` |
+| `TERROR_ANALYSIS_MAX_EVIDENCE` | `24` |
 | `MILITARY_BASES_ENABLED` | `true` |
 | `MILITARY_BASES_REFRESH_HOURS` | `168` |
+
+## OpenAI-Compatible LLM Runtime
+
+All OSINT LLM workloads use the same OpenAI-compatible base URL and API key.
+The configured model remains the first choice. When the endpoint supports
+`GET /models`, kafSIEM probes it at startup, caches the inventory, selects an
+available configured fallback, and refreshes immediately after a model 404.
+Gateways without a models endpoint continue using the configured model.
+
+| Variable | Default |
+|---|---|
+| `LLM_PROVIDER` | `openai-compatible` |
+| `LLM_BASE_URL` | `https://api.openai.com/v1` |
+| `LLM_API_KEY` | empty |
+| `LLM_MODEL` | `gpt-4.1-mini` |
+| `LLM_MODEL_FALLBACKS` | empty |
+| `ALERT_LLM_MODEL` | `gpt-4.1-mini` |
+| `ALERT_LLM_MODEL_FALLBACKS` | empty |
+| `LLM_MODEL_DISCOVERY_ENABLED` | `true` |
+| `LLM_MODEL_REFRESH_HOURS` | `168` |
+| `LLM_MAX_OUTPUT_TOKENS` | `1200` |
+
+Legacy shared endpoint names prefixed with `SOURCE_VETTING_` remain supported
+for upgrades. The canonical `LLM_*` value wins when both names are set.
 
 ## Kafka Alerts
 

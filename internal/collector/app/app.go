@@ -20,6 +20,7 @@ import (
 	"github.com/scalytics/kafSIEM/internal/collector/config"
 	"github.com/scalytics/kafSIEM/internal/collector/discover"
 	"github.com/scalytics/kafSIEM/internal/collector/run"
+	"github.com/scalytics/kafSIEM/internal/collector/vet"
 	"github.com/scalytics/kafSIEM/internal/packs"
 	"github.com/scalytics/kafSIEM/internal/sourcedb"
 )
@@ -86,6 +87,9 @@ func Run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer)
 	fs.StringVar(&cfg.VettingBaseURL, "source-vetting-base-url", cfg.VettingBaseURL, "OpenAI-compatible base URL for source vetting")
 	fs.StringVar(&cfg.VettingAPIKey, "source-vetting-api-key", cfg.VettingAPIKey, "API key for the source vetting endpoint")
 	fs.StringVar(&cfg.VettingModel, "source-vetting-model", cfg.VettingModel, "Model name for the source vetting endpoint")
+	fs.BoolVar(&cfg.LLMModelDiscoveryEnabled, "llm-model-discovery", cfg.LLMModelDiscoveryEnabled, "Probe the OpenAI-compatible models endpoint and resolve available models")
+	fs.IntVar(&cfg.LLMModelRefreshHours, "llm-model-refresh-hours", cfg.LLMModelRefreshHours, "Hours to cache the provider model inventory")
+	fs.IntVar(&cfg.LLMMaxOutputTokens, "llm-max-output-tokens", cfg.LLMMaxOutputTokens, "Maximum output tokens for OpenAI-compatible LLM requests")
 	fs.Float64Var(&cfg.VettingTemperature, "source-vetting-temperature", cfg.VettingTemperature, "Temperature for source vetting requests")
 	fs.IntVar(&cfg.VettingMaxSampleItems, "source-vetting-max-samples", cfg.VettingMaxSampleItems, "Maximum sample items fetched per discovered source for vetting")
 	fs.IntVar(&cfg.XFetchPauseMS, "x-fetch-pause-ms", cfg.XFetchPauseMS, "Pause in milliseconds between sequential X source fetches")
@@ -129,6 +133,19 @@ func Run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer)
 	default:
 	}
 
+	if cfg.LLMModelDiscoveryEnabled && strings.TrimSpace(cfg.VettingAPIKey) != "" {
+		probeCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+		models, err := vet.ProbeModels(probeCtx, cfg)
+		cancel()
+		if err != nil {
+			fmt.Fprintf(stderr, "WARN LLM model inventory probe failed: %v (configured model remains active)\n", err)
+		} else {
+			fmt.Fprintf(stdout, "LLM model inventory: %d models available\n", len(models))
+		}
+		if cfg.Watch {
+			go runLLMModelInventoryLoop(ctx, cfg, stdout, stderr)
+		}
+	}
 	if cfg.DiscoverMode {
 		return discover.Run(ctx, cfg, stdout, stderr)
 	}
@@ -184,13 +201,17 @@ func Run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer)
 
 		srv := api.New(apiDB, cfg.APIAddr, stderr, cfg.CORSAllowedOrigins, cfg.APIBearerToken)
 		srv.ConfigureZoneBriefLLM(api.ZoneBriefLLMConfig{
-			RuntimeDir:         filepath.Dir(cfg.RegistryPath),
-			VettingTimeoutMS:   cfg.VettingTimeoutMS,
-			VettingBaseURL:     cfg.VettingBaseURL,
-			VettingAPIKey:      cfg.VettingAPIKey,
-			VettingProvider:    cfg.VettingProvider,
-			VettingModel:       cfg.VettingModel,
-			VettingTemperature: 0,
+			RuntimeDir:               filepath.Dir(cfg.RegistryPath),
+			VettingTimeoutMS:         cfg.VettingTimeoutMS,
+			VettingBaseURL:           cfg.VettingBaseURL,
+			VettingAPIKey:            cfg.VettingAPIKey,
+			VettingProvider:          cfg.VettingProvider,
+			VettingModel:             cfg.VettingModel,
+			VettingModelFallbacks:    cfg.VettingModelFallbacks,
+			LLMModelDiscoveryEnabled: cfg.LLMModelDiscoveryEnabled,
+			LLMModelRefreshHours:     cfg.LLMModelRefreshHours,
+			LLMMaxOutputTokens:       cfg.LLMMaxOutputTokens,
+			VettingTemperature:       0,
 		})
 		srv.ConfigureAgentOpsReplay(agentopskafka.StartReplay)
 		srv.ConfigureAgentOpsOperator(agentopskafka.LoadOperatorState)
@@ -235,6 +256,30 @@ func Run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer)
 	}
 
 	return run.New(stdout, stderr).Run(ctx, cfg)
+}
+
+func runLLMModelInventoryLoop(ctx context.Context, cfg config.Config, stdout, stderr io.Writer) {
+	refresh := time.Duration(cfg.LLMModelRefreshHours) * time.Hour
+	if refresh <= 0 {
+		refresh = 7 * 24 * time.Hour
+	}
+	ticker := time.NewTicker(refresh)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			probeCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+			models, err := vet.ProbeModels(probeCtx, cfg)
+			cancel()
+			if err != nil {
+				fmt.Fprintf(stderr, "WARN scheduled LLM model inventory probe failed: %v\n", err)
+				continue
+			}
+			fmt.Fprintf(stdout, "LLM model inventory refreshed: %d models available\n", len(models))
+		}
+	}
 }
 
 func normalizeRole(raw string) string {

@@ -40,13 +40,17 @@ type Server struct {
 }
 
 type ZoneBriefLLMConfig struct {
-	RuntimeDir         string
-	VettingTimeoutMS   int
-	VettingBaseURL     string
-	VettingAPIKey      string
-	VettingProvider    string
-	VettingModel       string
-	VettingTemperature float64
+	RuntimeDir               string
+	VettingTimeoutMS         int
+	VettingBaseURL           string
+	VettingAPIKey            string
+	VettingProvider          string
+	VettingModel             string
+	VettingModelFallbacks    []string
+	LLMModelDiscoveryEnabled bool
+	LLMModelRefreshHours     int
+	LLMMaxOutputTokens       int
+	VettingTemperature       float64
 }
 
 func New(db *sourcedb.DB, addr string, stderr io.Writer, allowedOrigins []string, bearerToken string) *Server {
@@ -244,7 +248,10 @@ func isLocalLawEnforcement(a model.Alert) bool {
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":     "ok",
+		"llm_models": vet.ModelResolutionStatuses(),
+	})
 }
 
 func (s *Server) handleAgentOpsReplay(w http.ResponseWriter, r *http.Request) {
@@ -614,14 +621,18 @@ func (s *Server) ensureZoneBriefLLM(ctx context.Context, row conflictStatRow) (s
 		return existing, false, false, nil
 	}
 
-	llm := vet.NewClient(config.Config{
-		VettingTimeoutMS:   s.llmCfg.VettingTimeoutMS,
-		VettingBaseURL:     s.llmCfg.VettingBaseURL,
-		VettingAPIKey:      s.llmCfg.VettingAPIKey,
-		VettingProvider:    s.llmCfg.VettingProvider,
-		VettingModel:       s.llmCfg.VettingModel,
-		VettingTemperature: s.llmCfg.VettingTemperature,
-	})
+	llm := vet.NewClientForWorkload(config.Config{
+		VettingTimeoutMS:         s.llmCfg.VettingTimeoutMS,
+		VettingBaseURL:           s.llmCfg.VettingBaseURL,
+		VettingAPIKey:            s.llmCfg.VettingAPIKey,
+		VettingProvider:          s.llmCfg.VettingProvider,
+		VettingModel:             s.llmCfg.VettingModel,
+		VettingModelFallbacks:    s.llmCfg.VettingModelFallbacks,
+		LLMModelDiscoveryEnabled: s.llmCfg.LLMModelDiscoveryEnabled,
+		LLMModelRefreshHours:     s.llmCfg.LLMModelRefreshHours,
+		LLMMaxOutputTokens:       s.llmCfg.LLMMaxOutputTokens,
+		VettingTemperature:       s.llmCfg.VettingTemperature,
+	}, vet.WorkloadConflictAnalysis)
 	baseContext := fmt.Sprintf(
 		"Zone: %s\nCountry ID: %s\nSides: %s | %s\nConflict start: %s\nConflict type: %s\nTotal deaths (all years): %d\nDeaths latest year (%d): %d",
 		strings.TrimSpace(row.Title),

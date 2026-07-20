@@ -204,10 +204,11 @@ Set these in `.env` (the install/update script will prompt for them):
 
 ```dotenv
 SOURCE_VETTING_ENABLED=true
-SOURCE_VETTING_PROVIDER=xai
-SOURCE_VETTING_BASE_URL=https://api.x.ai/v1
-SOURCE_VETTING_API_KEY=your-key-here
-SOURCE_VETTING_MODEL=grok-4-1-fast
+LLM_PROVIDER=xai
+LLM_BASE_URL=https://api.x.ai/v1
+LLM_API_KEY=your-key-here
+LLM_MODEL=grok-4.3
+LLM_MODEL_FALLBACKS=grok-4.3-latest,grok-latest
 ```
 
 ### Token cost

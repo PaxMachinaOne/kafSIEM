@@ -202,6 +202,7 @@ configure_osint_settings() {
   local env_file="$1"
   local source_vetting_enabled
   local alert_llm_enabled
+  local legacy_value
 
   echo ""
   echo "# OSINT setup"
@@ -209,15 +210,43 @@ configure_osint_settings() {
   prompt_env_value "$env_file" "ACLED_USERNAME" "ACLED Username"
   prompt_env_value "$env_file" "ACLED_PASSWORD" "ACLED Password" "true"
 
+  echo ""
+  echo "# OpenAI-compatible LLM endpoint (shared by all OSINT LLM workloads)"
+  if [[ -z "$(env_value "$env_file" "LLM_PROVIDER")" ]]; then
+    legacy_value="$(env_value "$env_file" "SOURCE_VETTING_PROVIDER")"
+    [[ -z "$legacy_value" ]] || upsert_env "$env_file" "LLM_PROVIDER" "$legacy_value"
+  fi
+  if [[ -z "$(env_value "$env_file" "LLM_BASE_URL")" ]]; then
+    legacy_value="$(env_value "$env_file" "SOURCE_VETTING_BASE_URL")"
+    [[ -z "$legacy_value" ]] || upsert_env "$env_file" "LLM_BASE_URL" "$legacy_value"
+  fi
+  if [[ -z "$(env_value "$env_file" "LLM_API_KEY")" ]]; then
+    legacy_value="$(env_value "$env_file" "SOURCE_VETTING_API_KEY")"
+    [[ -z "$legacy_value" ]] || upsert_env "$env_file" "LLM_API_KEY" "$legacy_value"
+  fi
+  if [[ -z "$(env_value "$env_file" "LLM_MODEL")" ]]; then
+    legacy_value="$(env_value "$env_file" "SOURCE_VETTING_MODEL")"
+    [[ -z "$legacy_value" ]] || upsert_env "$env_file" "LLM_MODEL" "$legacy_value"
+  fi
+  if [[ -z "$(env_value "$env_file" "LLM_MODEL_FALLBACKS")" ]]; then
+    legacy_value="$(env_value "$env_file" "SOURCE_VETTING_MODEL_FALLBACKS")"
+    [[ -z "$legacy_value" ]] || upsert_env "$env_file" "LLM_MODEL_FALLBACKS" "$legacy_value"
+  fi
+  prompt_env_value "$env_file" "LLM_PROVIDER" "LLM Provider Label"
+  prompt_env_value "$env_file" "LLM_BASE_URL" "LLM Base URL"
+  prompt_env_value "$env_file" "LLM_API_KEY" "LLM API Key" "true"
+  prompt_env_value "$env_file" "LLM_MODEL" "Preferred LLM Model"
+  prompt_env_value "$env_file" "LLM_MODEL_FALLBACKS" "LLM Model Fallbacks"
+
   source_vetting_enabled="$(prompt_env_bool "$env_file" "SOURCE_VETTING_ENABLED" "Enable Source Vetting LLM")"
   if [[ "$source_vetting_enabled" == "true" ]]; then
-    prompt_env_value "$env_file" "SOURCE_VETTING_API_KEY" "Source Vetting API Key" "true"
-    prompt_env_value "$env_file" "SOURCE_VETTING_MODEL" "Source Vetting Model"
+    info "Source vetting will use the shared LLM endpoint."
   fi
 
   alert_llm_enabled="$(prompt_env_bool "$env_file" "ALERT_LLM_ENABLED" "Enable Alert LLM (higher token usage)")"
   if [[ "$alert_llm_enabled" == "true" ]]; then
     prompt_env_value "$env_file" "ALERT_LLM_MODEL" "Alert LLM Model"
+    prompt_env_value "$env_file" "ALERT_LLM_MODEL_FALLBACKS" "Alert LLM Model Fallbacks"
   fi
 }
 
