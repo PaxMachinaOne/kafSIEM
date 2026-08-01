@@ -55,6 +55,21 @@ func TestReconcileCarriesForwardAndRemoves(t *testing.T) {
 	}
 }
 
+func TestReconcilePreservesExplicitUpdatedLifecycle(t *testing.T) {
+	cfg := config.Default()
+	now := time.Date(2026, 8, 1, 8, 0, 0, 0, time.UTC)
+	active := []model.Alert{{
+		AlertID:   "bbk-mowas:warning-1",
+		SourceID:  "bbk-mowas",
+		Status:    "updated",
+		FirstSeen: now.Add(-time.Hour).Format(time.RFC3339),
+	}}
+	currentActive, _, _ := Reconcile(cfg, active, nil, nil, now, nil)
+	if len(currentActive) != 1 || currentActive[0].Status != "updated" {
+		t.Fatalf("expected explicit updated lifecycle, got %#v", currentActive)
+	}
+}
+
 func TestReconcileAccumulateCarriesForward(t *testing.T) {
 	cfg := config.Default()
 	now := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)

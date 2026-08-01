@@ -29,6 +29,16 @@ import (
 	"github.com/scalytics/kafSIEM/internal/sourcedb"
 )
 
+type mapFetcher map[string][]byte
+
+func (f mapFetcher) Text(_ context.Context, rawURL string, _ bool, _ string) ([]byte, error) {
+	body, ok := f[rawURL]
+	if !ok {
+		return nil, fmt.Errorf("unexpected URL %s", rawURL)
+	}
+	return body, nil
+}
+
 func TestRunnerRunOnceWritesOutputs(t *testing.T) {
 	dir := t.TempDir()
 	registryPath := filepath.Join(dir, "registry.json")
@@ -492,6 +502,54 @@ func TestExtractInterpolNoticeID(t *testing.T) {
 	}
 	if got := extractInterpolNoticeID("", "https://ws-public.interpol.int/notices/v1/red/123"); got != "123" {
 		t.Fatalf("expected path id, got %q", got)
+	}
+}
+
+func TestFetchMOWASUsesDetailGeoJSONAndOfficialPortalLink(t *testing.T) {
+	feedURL := "https://warnung.bund.de/api31/mowas/mapData.json"
+	id := "mow.DE-BY-TS-W135-20260801-000"
+	fetcher := mapFetcher{
+		feedURL: []byte(`[{"id":"mow.DE-BY-TS-W135-20260801-000","version":19,"startDate":"2026-08-01T07:30:00Z","severity":"Severe","urgency":"Immediate","type":"Alert","i18nTitle":{"de":"Waldbrand"}}]`),
+		"https://warnung.bund.de/api31/warnings/" + id + ".json":    []byte(`{"identifier":"mow.DE-BY-TS-W135-20260801-000","sent":"2026-08-01T07:30:00Z","status":"Actual","msgType":"Alert","info":[{"language":"de","category":["Fire"],"headline":"Waldbrand am Hochstaufen","description":"Gefahr für Leib und Leben.","instruction":"Meiden Sie das Gebiet.","severity":"Severe","urgency":"Immediate","certainty":"Observed","eventCode":[{"value":"BBK-EVC-077"}],"parameter":[{"valueName":"sender_langname","value":"Integrierte Leitstelle Traunstein"}],"area":[{"areaDesc":"Bad Reichenhall"}]}]}`),
+		"https://warnung.bund.de/api31/warnings/" + id + ".geojson": []byte(`{"type":"FeatureCollection","features":[{"geometry":{"type":"Polygon","coordinates":[[[12,47],[13,47],[13,48],[12,48],[12,47]]]}}]}`),
+	}
+	cfg := config.Default()
+	cfg.MaxAgeDays = 365
+	now := time.Date(2026, 8, 1, 8, 0, 0, 0, time.UTC)
+	source := model.RegistrySource{
+		Type:            "bbk-mowas-json",
+		FollowRedirects: true,
+		FeedURL:         feedURL,
+		Category:        "public_safety",
+		RegionTag:       "DE",
+		MaxItems:        60,
+		Source: model.SourceMetadata{
+			SourceID:      "bbk-mowas",
+			AuthorityName: "BBK Modular Warning System (MoWaS)",
+			Country:       "Germany",
+			CountryCode:   "DE",
+			Region:        "Europe",
+			AuthorityType: "public_safety_program",
+			BaseURL:       "https://warnung.bund.de",
+		},
+	}
+	runner := New(io.Discard, io.Discard)
+	alerts, err := runner.fetchMOWAS(t.Context(), fetcher, normalize.Context{Config: cfg, Now: now}, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(alerts) != 1 {
+		t.Fatalf("expected one warning, got %#v", alerts)
+	}
+	alert := alerts[0]
+	if !strings.HasPrefix(alert.CanonicalURL, "https://warnung.bund.de/meldungen/") || strings.Contains(alert.CanonicalURL, "/api31/") {
+		t.Fatalf("expected official human-facing portal link, got %q", alert.CanonicalURL)
+	}
+	if alert.Source.AuthorityName != "Integrierte Leitstelle Traunstein" {
+		t.Fatalf("expected issuing authority, got %q", alert.Source.AuthorityName)
+	}
+	if alert.Lat != 47.5 || alert.Lng != 12.5 {
+		t.Fatalf("expected GeoJSON centroid, got %f,%f", alert.Lat, alert.Lng)
 	}
 }
 
