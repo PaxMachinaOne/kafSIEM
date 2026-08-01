@@ -212,7 +212,12 @@ func Reconcile(cfg config.Config, active []model.Alert, filtered []model.Alert, 
 		if prev, ok := previousByID[alert.AlertID]; ok && prev.FirstSeen != "" {
 			alert.FirstSeen = prev.FirstSeen
 		}
-		alert.Status = "active"
+		// Structured alert systems can explicitly identify updates and
+		// cancellations. Keep that lifecycle visible while the record remains
+		// in the provider's current-alert feed.
+		if alert.Status != "updated" {
+			alert.Status = "active"
+		}
 		alert.LastSeen = nowISO
 		currentActive = append(currentActive, alert)
 	}

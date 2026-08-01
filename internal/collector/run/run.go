@@ -1085,7 +1085,7 @@ func acceptForType(sourceType string) string {
 		return "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.8"
 	case "x":
 		return "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
-	case "kev-json", "fbi-wanted-json", "travelwarning-json", "acled-json",
+	case "kev-json", "fbi-wanted-json", "travelwarning-json", "bbk-mowas-json", "acled-json",
 		"usgs-geojson", "eonet-json", "gdelt-json", "feodo-json", "ucdp-json", "nvd-json":
 		return "application/json"
 	case "epss-csv", "urlhaus-csv":
@@ -1160,7 +1160,7 @@ func typePriority(kind string) int {
 	switch strings.ToLower(strings.TrimSpace(kind)) {
 	case "kev-json", "nvd-json", "epss-csv":
 		return 5
-	case "interpol-red-json", "interpol-yellow-json", "fbi-wanted-json", "travelwarning-json", "travelwarning-atom":
+	case "interpol-red-json", "interpol-yellow-json", "fbi-wanted-json", "travelwarning-json", "travelwarning-atom", "bbk-mowas-json":
 		return 4
 	case "usgs-geojson", "eonet-json", "feodo-json", "gdelt-json", "ucdp-json", "urlhaus-csv", "un-sanctions-xml", "ofac-sdn-xml", "opensanctions-json":
 		return 4
@@ -1208,6 +1208,8 @@ func (r Runner) fetchSource(ctx context.Context, fetcher fetch.Fetcher, browser 
 		return r.fetchTravelWarningJSON(ctx, fetcher, nctx, source)
 	case "travelwarning-atom":
 		return r.fetchTravelWarningAtom(ctx, fetcher, nctx, source)
+	case "bbk-mowas-json":
+		return r.fetchMOWAS(ctx, fetcher, nctx, source)
 	case "telegram":
 		return r.fetchTelegram(ctx, fetcher, nctx, source, categoryDictionary)
 	case "usgs-geojson":
@@ -2080,6 +2082,82 @@ func (r Runner) fetchTravelWarningAtom(ctx context.Context, fetcher fetch.Fetche
 		}
 	}
 	return out, nil
+}
+
+func (r Runner) fetchMOWAS(ctx context.Context, fetcher fetch.Fetcher, nctx normalize.Context, source model.RegistrySource) ([]model.Alert, error) {
+	body, err := fetcher.Text(ctx, source.FeedURL, source.FollowRedirects, "application/json")
+	if err != nil {
+		return nil, err
+	}
+	summaries, err := parse.ParseMOWASMap(body)
+	if err != nil {
+		return nil, err
+	}
+	apiBase, portalBase, err := mowasBases(source.FeedURL)
+	if err != nil {
+		return nil, err
+	}
+	limit := perSourceLimit(nctx.Config, source)
+	if len(summaries) > limit {
+		summaries = summaries[:limit]
+	}
+	out := make([]model.Alert, 0, len(summaries))
+	failedDetails := 0
+	for _, summary := range summaries {
+		detailURL := apiBase + "/warnings/" + url.PathEscape(summary.ID) + ".json"
+		detailBody, detailErr := fetcher.Text(ctx, detailURL, source.FollowRedirects, "application/json")
+		if detailErr != nil {
+			failedDetails++
+			fmt.Fprintf(r.stderr, "WARN %s: detail %s: %v\n", source.Source.AuthorityName, summary.ID, detailErr)
+			continue
+		}
+		item, detailErr := parse.ParseMOWASDetail(detailBody, summary, portalBase)
+		if detailErr != nil {
+			failedDetails++
+			fmt.Fprintf(r.stderr, "WARN %s: parse detail %s: %v\n", source.Source.AuthorityName, summary.ID, detailErr)
+			continue
+		}
+
+		geoURL := apiBase + "/warnings/" + url.PathEscape(summary.ID) + ".geojson"
+		if geoBody, geoErr := fetcher.Text(ctx, geoURL, source.FollowRedirects, "application/geo+json, application/json"); geoErr == nil {
+			if lat, lng, ok, parseErr := parse.ParseMOWASGeoJSON(geoBody); parseErr == nil && ok {
+				item.Lat = lat
+				item.Lng = lng
+			} else if parseErr != nil {
+				fmt.Fprintf(r.stderr, "WARN %s: parse geography %s: %v\n", source.Source.AuthorityName, summary.ID, parseErr)
+			}
+		} else {
+			// Geography improves placement but is not required to preserve a
+			// time-critical official warning.
+			fmt.Fprintf(r.stderr, "WARN %s: geography %s: %v\n", source.Source.AuthorityName, summary.ID, geoErr)
+		}
+
+		alert := normalize.MOWASAlert(nctx, source, item)
+		if alert != nil {
+			out = append(out, *alert)
+		}
+	}
+	if len(summaries) > 0 && len(out) == 0 && failedDetails > 0 {
+		return nil, fmt.Errorf("all %d MoWaS warning details failed", failedDetails)
+	}
+	return out, nil
+}
+
+func mowasBases(feedURL string) (apiBase string, portalBase string, err error) {
+	parsed, err := url.Parse(strings.TrimSpace(feedURL))
+	if err != nil {
+		return "", "", fmt.Errorf("parse MoWaS feed URL: %w", err)
+	}
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return "", "", fmt.Errorf("invalid MoWaS feed URL %q", feedURL)
+	}
+	const suffix = "/mowas/mapData.json"
+	if !strings.HasSuffix(parsed.Path, suffix) {
+		return "", "", fmt.Errorf("MoWaS feed URL must end in %s", suffix)
+	}
+	portalBase = parsed.Scheme + "://" + parsed.Host
+	apiBase = portalBase + strings.TrimSuffix(parsed.Path, suffix)
+	return apiBase, portalBase, nil
 }
 
 func (r Runner) fetchUSGSGeoJSON(ctx context.Context, fetcher fetch.Fetcher, nctx normalize.Context, source model.RegistrySource) ([]model.Alert, error) {

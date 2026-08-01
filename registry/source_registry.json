@@ -1,5 +1,43 @@
 [
   {
+    "type": "bbk-mowas-json",
+    "followRedirects": true,
+    "source": {
+      "source_id": "bbk-mowas",
+      "authority_name": "BBK Modular Warning System (MoWaS)",
+      "country": "Germany",
+      "country_code": "DE",
+      "region": "Europe",
+      "authority_type": "public_safety_program",
+      "base_url": "https://warnung.bund.de",
+      "scope": "national",
+      "level": "federal",
+      "mission_tags": [
+        "civil-protection",
+        "emergency-warning",
+        "public-safety"
+      ],
+      "operational_relevance": 1,
+      "is_curated": true,
+      "is_high_value": true,
+      "language_code": "de"
+    },
+    "feed_url": "https://warnung.bund.de/api31/mowas/mapData.json",
+    "category": "public_safety",
+    "region_tag": "DE",
+    "lat": 52.52,
+    "lng": 13.405,
+    "source_quality": 1,
+    "promotion_status": "active",
+    "preferred_source_rank": 1,
+    "reporting": {
+      "label": "View official warnings",
+      "url": "https://warnung.bund.de/meldungen",
+      "notes": "Follow the issuing authority's current instructions. Local emergency services take precedence."
+    },
+    "max_items": 60
+  },
+  {
     "type": "kev-json",
     "source": {
       "source_id": "cisa-kev",

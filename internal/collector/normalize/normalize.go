@@ -2072,7 +2072,9 @@ func FilterActive(cfg config.Config, alerts []model.Alert) (active []model.Alert
 		// advisories stay relevant longer.
 		// Certain categories are exempt — wanted/missing persons stay
 		// relevant indefinitely regardless of publish age.
-		freshnessExempt := false
+		// MoWaS publishes a current-state feed: an old start date can still
+		// represent a valid warning that has not expired or been cancelled.
+		freshnessExempt := strings.EqualFold(alert.SourceID, "bbk-mowas")
 		switch strings.ToLower(alert.Category) {
 		case "wanted_suspect", "missing_person", "public_appeal":
 			freshnessExempt = true
