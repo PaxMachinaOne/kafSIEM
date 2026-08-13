@@ -178,7 +178,7 @@ make ci
 make docker-build
 ```
 
-Node `25.8.1` and npm `11.11.0` are pinned in `package.json`, `.nvmrc`, and
+Node `26.7.0` and npm `11.19.0` are pinned in `package.json`, `.nvmrc`, and
 `.node-version`. The Go collector powers scheduled feed refresh, Docker
 runtime, and local collection commands.
 
