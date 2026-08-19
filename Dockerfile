@@ -7,7 +7,7 @@ ENV APP_VERSION=${APP_VERSION}
 ENV VITE_APP_VERSION=${APP_VERSION}
 
 COPY package.json package-lock.json ./
-RUN npm install -g npm@11.11.0 && npm ci
+RUN npm install -g npm@11.19.0 && npm ci
 
 COPY . .
 RUN npm run build
