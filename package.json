@@ -33,12 +33,14 @@
     "docker:run": "sh -c 'if command -v docker-compose >/dev/null 2>&1; then docker-compose up --build; else docker compose up --build; fi'"
   },
   "dependencies": {
+    "@maplibre/maplibre-gl-leaflet": "^0.1.4",
     "clsx": "^2.1.1",
     "cytoscape": "^3.34.1",
     "leaflet": "^1.9.4",
     "leaflet.heat": "^0.2.0",
     "leaflet.markercluster": "^1.5.3",
     "lucide-react": "^1.33.0",
+    "maplibre-gl": "^5.24.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.8",
     "tailwind-merge": "^3.6.0",

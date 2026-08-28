@@ -14,6 +14,7 @@ import { isIncidentAnchor } from "@/lib/incident-links";
 import { countryCentroid } from "@/lib/country-centroids";
 import { alertMatchesRegionFilter } from "@/lib/regions";
 import { severityHex, textHex } from "@/lib/theme";
+import { addDarkBasemap, OPENFREEMAP_ATTRIBUTION } from "@/lib/basemap";
 import { loadOverlayDefs, loadOverlay, type OverlayDef, type OverlayId } from "@/lib/map-overlays";
 import { detectSpikes } from "@/lib/activity-spikes";
 import { getConflictLensById, type ConflictLens } from "@/lib/conflict-lenses";
@@ -627,10 +628,7 @@ export function GlobeView({
       attributionControl: false,
     });
 
-    L.tileLayer(
-      "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-      { maxZoom: 18, subdomains: "abcd", noWrap: true },
-    ).addTo(map);
+    addDarkBasemap(map);
 
     // Custom panes for proper layering (Leaflet defaults: overlay 400, marker 600, tooltip 650, popup 700).
     //  1. linesPane   (401) — cables, shipping lanes: visual only, no interaction
@@ -655,9 +653,7 @@ export function GlobeView({
 
     L.control
       .attribution({ position: "bottomleft", prefix: false })
-      .addAttribution(
-        '&copy; <a href="https://carto.com/attributions">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
-      )
+      .addAttribution(OPENFREEMAP_ATTRIBUTION)
       .addTo(map);
 
     const cluster = L.markerClusterGroup({
