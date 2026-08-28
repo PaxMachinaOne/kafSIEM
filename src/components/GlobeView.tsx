@@ -14,7 +14,7 @@ import { isIncidentAnchor } from "@/lib/incident-links";
 import { countryCentroid } from "@/lib/country-centroids";
 import { alertMatchesRegionFilter } from "@/lib/regions";
 import { severityHex, textHex } from "@/lib/theme";
-import { addDarkBasemap, OPENFREEMAP_ATTRIBUTION } from "@/lib/basemap";
+import { addDarkBasemap, MAP_MAX_ZOOM, OPENFREEMAP_ATTRIBUTION } from "@/lib/basemap";
 import { loadOverlayDefs, loadOverlay, type OverlayDef, type OverlayId } from "@/lib/map-overlays";
 import { detectSpikes } from "@/lib/activity-spikes";
 import { getConflictLensById, type ConflictLens } from "@/lib/conflict-lenses";
@@ -622,6 +622,7 @@ export function GlobeView({
       center: vp.center,
       zoom: vp.zoom,
       minZoom: 3,
+      maxZoom: MAP_MAX_ZOOM,
       maxBounds: L.latLngBounds([-85, -180], [85, 180]),
       maxBoundsViscosity: 1.0,
       zoomControl: false,

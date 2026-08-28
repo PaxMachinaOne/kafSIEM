@@ -12,8 +12,12 @@ export const OPENFREEMAP_TILE_ORIGIN = "https://tiles.openfreemap.org";
 export const OPENFREEMAP_DARK_STYLE = `${OPENFREEMAP_TILE_ORIGIN}/styles/dark`;
 export const OPENFREEMAP_ATTRIBUTION =
   '<a href="https://openfreemap.org">OpenFreeMap</a> <a href="https://www.openmaptiles.org/">&copy; OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+export const MAP_MAX_ZOOM = 18;
 
 export function addDarkBasemap(map: L.Map): L.Layer {
+  if (!Number.isFinite(map.getMaxZoom())) {
+    map.setMaxZoom(MAP_MAX_ZOOM);
+  }
   return maplibreGL({
     style: OPENFREEMAP_DARK_STYLE,
     attributionControl: false,

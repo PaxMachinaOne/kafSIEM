@@ -4,15 +4,26 @@
  * See NOTICE for provenance and LICENSE for repository-local terms.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import L from "leaflet";
 import caddyfile from "../../docker/Caddyfile?raw";
 import globeSource from "../components/GlobeView.tsx?raw";
 import mobileSource from "../mobile/MobileMapView.tsx?raw";
 import {
+  addDarkBasemap,
+  MAP_MAX_ZOOM,
   OPENFREEMAP_ATTRIBUTION,
   OPENFREEMAP_DARK_STYLE,
   OPENFREEMAP_TILE_ORIGIN,
 } from "./basemap";
+
+vi.mock("@maplibre/maplibre-gl-leaflet", () => ({
+  maplibreGL: () => ({
+    addTo(map: L.Map) {
+      return map;
+    },
+  }),
+}));
 
 describe("basemap", () => {
   it("uses OpenFreeMap dark vector style, not CARTO raster tiles", () => {
@@ -32,9 +43,21 @@ describe("basemap", () => {
     for (const src of [globeSource, mobileSource]) {
       expect(src).toContain("addDarkBasemap");
       expect(src).toContain("OPENFREEMAP_ATTRIBUTION");
+      expect(src).toContain("maxZoom: MAP_MAX_ZOOM");
       expect(src).not.toMatch(/cartocdn|carto\.com/i);
       expect(src).not.toContain("tile.openstreetmap.org");
     }
+  });
+
+  it("sets a finite maxZoom so markercluster can attach", () => {
+    const el = document.createElement("div");
+    document.body.appendChild(el);
+    const map = L.map(el, { center: [0, 0], zoom: 3 });
+    expect(Number.isFinite(map.getMaxZoom())).toBe(false);
+    addDarkBasemap(map);
+    expect(map.getMaxZoom()).toBe(MAP_MAX_ZOOM);
+    map.remove();
+    el.remove();
   });
 
   it("allows OpenFreeMap over CSP and drops CARTO tile hosts", () => {
