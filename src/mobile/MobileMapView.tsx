@@ -7,7 +7,7 @@ import { Layers, Check, ExternalLink } from "lucide-react";
 import type { Alert } from "@/types/alert";
 import { severityHex } from "@/lib/theme";
 import { categoryLabels, freshnessLabel } from "@/lib/severity";
-import { addDarkBasemap, OPENFREEMAP_ATTRIBUTION } from "@/lib/basemap";
+import { addDarkBasemap, MAP_MAX_ZOOM, OPENFREEMAP_ATTRIBUTION } from "@/lib/basemap";
 import {
   DEFAULT_OVERLAYS,
   loadOverlay,
@@ -65,6 +65,7 @@ export function MobileMapView({ alerts, regionFilter, onSelectAlert }: Props) {
     const map = L.map(containerRef.current, {
       center: vp.center,
       zoom: vp.zoom,
+      maxZoom: MAP_MAX_ZOOM,
       zoomControl: false,
       attributionControl: false,
     });
