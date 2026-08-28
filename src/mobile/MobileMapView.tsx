@@ -7,6 +7,7 @@ import { Layers, Check, ExternalLink } from "lucide-react";
 import type { Alert } from "@/types/alert";
 import { severityHex } from "@/lib/theme";
 import { categoryLabels, freshnessLabel } from "@/lib/severity";
+import { addDarkBasemap, OPENFREEMAP_ATTRIBUTION } from "@/lib/basemap";
 import {
   DEFAULT_OVERLAYS,
   loadOverlay,
@@ -81,12 +82,13 @@ export function MobileMapView({ alerts, regionFilter, onSelectAlert }: Props) {
     const popupPane = map.getPane("popupPane");
     if (popupPane) popupPane.style.zIndex = "850";
 
-    L.tileLayer(
-      "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-      { maxZoom: 18, subdomains: "abcd" },
-    ).addTo(map);
+    addDarkBasemap(map);
 
     L.control.zoom({ position: "bottomright" }).addTo(map);
+    L.control
+      .attribution({ position: "bottomleft", prefix: false })
+      .addAttribution(OPENFREEMAP_ATTRIBUTION)
+      .addTo(map);
 
     const cluster = L.markerClusterGroup({
       maxClusterRadius: 50,

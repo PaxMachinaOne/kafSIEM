@@ -68,6 +68,7 @@ export default defineConfig({
         manualChunks(id) {
           if (!id.includes("node_modules")) return undefined;
           if (id.includes("three")) return "vendor-three";
+          if (id.includes("maplibre")) return "vendor-maplibre";
           if (id.includes("leaflet")) return "vendor-leaflet";
           if (id.includes("react") || id.includes("scheduler")) return "vendor-react";
           if (id.includes("lucide-react")) return "vendor-icons";

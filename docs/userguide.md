@@ -123,7 +123,7 @@ Only the most recent window is fetched each cycle. Notices are pinned on the map
 
 ## Map
 
-The map uses [CARTO](https://carto.com/) dark basemap tiles loaded from their CDN. An active internet connection is required for map rendering. Missing or slow-loading tiles indicate network connectivity issues to `basemaps.cartocdn.com`.
+The map uses [OpenFreeMap](https://openfreemap.org) dark vector tiles (OSM data, OpenMapTiles schema) loaded from `tiles.openfreemap.org`. An active internet connection is required for map rendering. Missing or slow-loading tiles indicate network connectivity issues to that host.
 
 Alerts are plotted at event coordinates/country when resolvable. If event location confidence is low, fallback pinning uses source-country coordinates with low-confidence metadata.
 
